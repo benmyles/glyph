@@ -1,0 +1,44 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <value>
+          <list size="22">
+            <item index="0" class="java.lang.String" itemvalue="langchain" />
+            <item index="1" class="java.lang.String" itemvalue="pyasn1-modules" />
+            <item index="2" class="java.lang.String" itemvalue="email-validator" />
+            <item index="3" class="java.lang.String" itemvalue="pyproject-hooks" />
+            <item index="4" class="java.lang.String" itemvalue="importlib-resources" />
+            <item index="5" class="java.lang.String" itemvalue="typing-extensions" />
+            <item index="6" class="java.lang.String" itemvalue="pydantic-core" />
+            <item index="7" class="java.lang.String" itemvalue="pydantic" />
+            <item index="8" class="java.lang.String" itemvalue="nodeenv" />
+            <item index="9" class="java.lang.String" itemvalue="pip-tools" />
+            <item index="10" class="java.lang.String" itemvalue="deptry" />
+            <item index="11" class="java.lang.String" itemvalue="identify" />
+            <item index="12" class="java.lang.String" itemvalue="pytest" />
+            <item index="13" class="java.lang.String" itemvalue="iniconfig" />
+            <item index="14" class="java.lang.String" itemvalue="pluggy" />
+            <item index="15" class="java.lang.String" itemvalue="pre-commit" />
+            <item index="16" class="java.lang.String" itemvalue="platformdirs" />
+            <item index="17" class="java.lang.String" itemvalue="ruff" />
+            <item index="18" class="java.lang.String" itemvalue="virtualenv" />
+            <item index="19" class="java.lang.String" itemvalue="distlib" />
+            <item index="20" class="java.lang.String" itemvalue="cfgv" />
+            <item index="21" class="java.lang.String" itemvalue="fastapi" />
+          </list>
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="PIL.Image.LANCZOS" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="SqlNoDataSourceInspection" enabled="false" level="WARNING" enabled_by_default="false" />
+  </profile>
+</component>
