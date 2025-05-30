@@ -16,30 +16,39 @@ The project uses:
 
 ### Building
 ```bash
-go build
+make build
 ```
 
 ### Running Tests
 ```bash
-go test ./...
+make test
 ```
 
-### Installing Dependencies
+### Installing
 ```bash
-go mod download
+make install DESTDIR=/path/to/install/dir
 ```
 
-### Updating Dependencies
+### Cleaning
 ```bash
-go mod tidy
+make clean
+```
+
+### Manual commands (if needed)
+```bash
+go build         # Build manually
+go test ./...    # Run tests manually
+go mod download  # Install dependencies
+go mod tidy      # Update dependencies
 ```
 
 ## Key Implementation Notes
 
-- The server processes file paths using glob patterns
+- The server processes file paths using glob patterns (absolute paths only)
 - Symbol extraction is performed via tree-sitter AST parsing
 - Output format should be optimized for LLM context windows
-- Detail levels should be configurable (from high-level structure to full signatures)
+- Detail levels should be configurable
+- All file patterns must be absolute paths - relative paths are not supported
 
 ## Documentation
 
@@ -51,4 +60,4 @@ go mod tidy
 │     └── mcp-go.md -- mcp-go package docs
 ```
 
-- If a p
+- If you're using a dependency that's documented in `doc/llm`: always review the docs before writing code that uses the dependency.

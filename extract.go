@@ -1,17 +1,10 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/smacker/go-tree-sitter/golang"
-	"github.com/smacker/go-tree-sitter/javascript"
-	"github.com/smacker/go-tree-sitter/python"
-	"github.com/smacker/go-tree-sitter/typescript/typescript"
 )
 
 type Symbol struct {
@@ -69,109 +62,6 @@ func extractSymbols(pattern string, detail string) (string, error) {
 	return formatSymbols(allSymbols, detailLevel), nil
 }
 
-func findFiles(pattern string) ([]string, error) {
-	// If pattern contains **, use filepath.Walk for recursive matching
-	if strings.Contains(pattern, "**") {
-		var files []string
-		
-		// Split pattern at **
-		parts := strings.Split(pattern, "**")
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid pattern with **: %s", pattern)
-		}
-		
-		baseDir := parts[0]
-		if baseDir == "" {
-			baseDir = "."
-		} else {
-			// Remove trailing slash
-			baseDir = strings.TrimSuffix(baseDir, "/")
-		}
-		
-		// Get the file pattern after **
-		filePattern := parts[1]
-		if strings.HasPrefix(filePattern, "/") {
-			filePattern = filePattern[1:]
-		}
-		
-		err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
-			if err != nil {
-				return nil // Skip errors
-			}
-			
-			if !info.IsDir() {
-				// Check if the filename matches the pattern
-				matched, _ := filepath.Match(filePattern, filepath.Base(path))
-				if matched {
-					files = append(files, path)
-				}
-			}
-			return nil
-		})
-		
-		if err != nil {
-			return nil, err
-		}
-		
-		return files, nil
-	}
-
-	// For patterns without **, use standard glob
-	matches, err := filepath.Glob(pattern)
-	if err != nil {
-		return nil, err
-	}
-
-	return matches, nil
-}
-
-func extractFileSymbols(filePath string, detailLevel DetailLevel) ([]Symbol, error) {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Determine language and parser
-	_, parser := getParserForFile(filePath)
-	if parser == nil {
-		return nil, fmt.Errorf("unsupported file type: %s", filePath)
-	}
-
-	// Parse the file
-	tree, err := parser.ParseCtx(context.Background(), nil, content)
-	if err != nil {
-		return nil, err
-	}
-
-	// Extract symbols from AST
-	var symbols []Symbol
-	extractSymbolsFromNode(tree.RootNode(), filePath, content, &symbols, detailLevel)
-	
-	return symbols, nil
-}
-
-func getParserForFile(filePath string) (*sitter.Language, *sitter.Parser) {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	
-	var lang *sitter.Language
-	switch ext {
-	case ".go":
-		lang = golang.GetLanguage()
-	case ".js", ".jsx":
-		lang = javascript.GetLanguage()
-	case ".ts", ".tsx":
-		lang = typescript.GetLanguage()
-	case ".py":
-		lang = python.GetLanguage()
-	default:
-		return nil, nil
-	}
-	
-	parser := sitter.NewParser()
-	parser.SetLanguage(lang)
-	return lang, parser
-}
-
 func extractSymbolsFromNode(node *sitter.Node, filePath string, content []byte, symbols *[]Symbol, detailLevel DetailLevel) {
 	nodeType := node.Type()
 	
@@ -201,6 +91,7 @@ func extractSymbolsFromNode(node *sitter.Node, filePath string, content []byte, 
 
 func isSymbolNode(nodeType string) bool {
 	symbolTypes := map[string]bool{
+		// General
 		"function_declaration":    true,
 		"method_declaration":      true,
 		"class_declaration":       true,
@@ -209,16 +100,36 @@ func isSymbolNode(nodeType string) bool {
 		"variable_declaration":    true,
 		"function_definition":     true,
 		"class_definition":        true,
+		"field_declaration":       true,
+		
+		// Go specific
 		"function_item":           true,
 		"struct_item":             true,
+		"type_spec":               true,
+		"method_spec":             true,
+		"const_spec":              true,
+		"var_spec":                true,
+		
+		// JavaScript/TypeScript specific
+		"lexical_declaration":     true,
+		
+		// Python specific
+		"decorated_definition":    true,
+		
+		// Rust specific
 		"enum_item":               true,
 		"trait_item":              true,
 		"impl_item":               true,
-		"type_spec":               true,
-		"method_spec":             true,
-		"field_declaration":       true,
-		"const_spec":              true, // Go constants (inside const_declaration)
-		"var_spec":                true, // Go variables (inside var_declaration)
+		
+		// Java specific
+		"constructor_declaration": true,
+		"record_declaration":      true,
+		"enum_declaration":        true,
+		"annotation_type_declaration": true,
+		"constant_declaration":    true,
+		"static_initializer":      true,
+		"instance_initializer":    true,
+		"compact_constructor_declaration": true,
 	}
 	
 	return symbolTypes[nodeType]
@@ -230,12 +141,20 @@ func extractSymbolDetails(node *sitter.Node, content []byte, symbol *Symbol, det
 	switch nodeType {
 	case "function_declaration", "method_declaration", "function_definition", "function_item", "method_spec":
 		extractFunctionDetails(node, content, symbol, detailLevel)
-	case "class_declaration", "class_definition", "struct_item", "type_spec":
+	case "constructor_declaration", "compact_constructor_declaration":
+		extractConstructorDetails(node, content, symbol, detailLevel)
+	case "class_declaration", "class_definition", "struct_item", "type_spec", "record_declaration", "enum_declaration":
 		extractClassDetails(node, content, symbol, detailLevel)
-	case "interface_declaration", "trait_item":
+	case "interface_declaration", "trait_item", "annotation_type_declaration":
 		extractInterfaceDetails(node, content, symbol, detailLevel)
-	case "variable_declaration", "const_declaration", "field_declaration", "const_spec", "var_spec":
+	case "variable_declaration", "const_declaration", "field_declaration", "const_spec", "var_spec", "constant_declaration":
 		extractVariableDetails(node, content, symbol, detailLevel)
+	case "static_initializer", "instance_initializer":
+		extractInitializerDetails(node, content, symbol, detailLevel)
+	case "lexical_declaration":
+		extractVariableDetails(node, content, symbol, detailLevel)
+	case "decorated_definition":
+		extractDecoratedDefinition(node, content, symbol, detailLevel)
 	}
 }
 
@@ -283,9 +202,53 @@ func extractClassDetails(node *sitter.Node, content []byte, symbol *Symbol, deta
 	}
 	
 	if detailLevel >= Standard {
-		// For type_spec in Go, we want to include the type keyword
-		if node.Type() == "type_spec" {
-			// Extract everything up to the opening brace
+		// For Java classes, we need to find where the actual class declaration starts
+		// (after annotations) by looking for the class/interface/enum/record keyword
+		if node.Type() == "class_declaration" || node.Type() == "interface_declaration" || 
+		   node.Type() == "enum_declaration" || node.Type() == "record_declaration" {
+			// Find where to start the signature (skip annotations)
+			signatureStart := node.StartByte()
+			foundNonAnnotationModifier := false
+			
+			// Look for modifiers node
+			for i := 0; i < int(node.ChildCount()); i++ {
+				child := node.Child(i)
+				if child.Type() == "modifiers" {
+					// Find first non-annotation modifier
+					for j := 0; j < int(child.ChildCount()); j++ {
+						modChild := child.Child(j)
+						if modChild.Type() != "annotation" && modChild.Type() != "marker_annotation" {
+							signatureStart = modChild.StartByte()
+							foundNonAnnotationModifier = true
+							break
+						}
+					}
+				}
+				// If we found the class/interface/enum/record keyword and haven't found non-annotation modifiers
+				if (child.Type() == "class" || child.Type() == "interface" || 
+				    child.Type() == "enum" || child.Type() == "record") && !foundNonAnnotationModifier {
+					signatureStart = child.StartByte()
+					break
+				}
+			}
+			
+			// Find the opening brace
+			bracePos := node.EndByte()
+			for i := 0; i < int(node.ChildCount()); i++ {
+				child := node.Child(i)
+				if child.Type() == "class_body" || child.Type() == "interface_body" || 
+				   child.Type() == "enum_body" || child.Type() == "record_body" {
+					bracePos = child.StartByte()
+					break
+				}
+			}
+			
+			// Extract the signature
+			if bracePos > signatureStart {
+				symbol.Signature = strings.TrimSpace(string(content[signatureStart:bracePos]))
+			}
+		} else if node.Type() == "type_spec" {
+			// For Go type_spec, include up to and including the opening brace
 			startByte := node.StartByte()
 			for i := startByte; i < node.EndByte() && i < uint32(len(content)); i++ {
 				if content[i] == '{' {
@@ -298,7 +261,7 @@ func extractClassDetails(node *sitter.Node, content []byte, symbol *Symbol, deta
 				symbol.Signature = strings.TrimSpace(string(content[node.StartByte():node.EndByte()]))
 			}
 		} else {
-			// Extract class/struct header
+			// Default behavior for other types
 			startByte := node.StartByte()
 			for i := startByte; i < node.EndByte() && i < uint32(len(content)); i++ {
 				if content[i] == '{' {
@@ -351,60 +314,54 @@ func extractVariableDetails(node *sitter.Node, content []byte, symbol *Symbol, d
 	}
 }
 
-func formatSymbols(symbols []Symbol, detailLevel DetailLevel) string {
-	if len(symbols) == 0 {
-		return "No symbols found"
-	}
-	
-	var sb strings.Builder
-	sb.WriteString("# Symbol Outline\n\n")
-	
-	// Group symbols by file
-	fileSymbols := make(map[string][]Symbol)
-	for _, sym := range symbols {
-		fileSymbols[sym.FilePath] = append(fileSymbols[sym.FilePath], sym)
-	}
-	
-	// Format output
-	for file, syms := range fileSymbols {
-		sb.WriteString(fmt.Sprintf("## %s\n\n", file))
-		
-		for _, sym := range syms {
-			formatSymbol(&sb, sym, detailLevel, 0)
+func extractConstructorDetails(node *sitter.Node, content []byte, symbol *Symbol, detailLevel DetailLevel) {
+	// For constructors, look for the identifier (constructor name)
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(i)
+		if child.Type() == "identifier" {
+			symbol.Name = string(content[child.StartByte():child.EndByte()])
+			break
 		}
-		
-		sb.WriteString("\n")
 	}
 	
-	return sb.String()
+	// Extract signature for standard and full detail levels
+	if detailLevel >= Standard {
+		startByte := node.StartByte()
+		endByte := node.EndByte()
+		
+		if detailLevel == Full {
+			symbol.Signature = strings.TrimSpace(string(content[startByte:endByte]))
+		} else {
+			// For standard detail, extract just the constructor signature
+			for i := startByte; i < endByte && i < uint32(len(content)); i++ {
+				if content[i] == '{' {
+					symbol.Signature = strings.TrimSpace(string(content[startByte:i]))
+					break
+				}
+			}
+			if symbol.Signature == "" {
+				symbol.Signature = strings.TrimSpace(string(content[startByte:endByte]))
+			}
+		}
+	}
 }
 
-func formatSymbol(sb *strings.Builder, symbol Symbol, detailLevel DetailLevel, indent int) {
-	indentStr := strings.Repeat("  ", indent)
+func extractInitializerDetails(node *sitter.Node, content []byte, symbol *Symbol, detailLevel DetailLevel) {
+	// For static/instance initializers, use the node type as the name
+	symbol.Name = strings.Replace(node.Type(), "_", " ", -1)
 	
-	switch detailLevel {
-	case Minimal:
-		sb.WriteString(fmt.Sprintf("%s- %s: %s (line %d)\n", 
-			indentStr, symbol.Kind, symbol.Name, symbol.StartLine))
-	case Standard:
-		if symbol.Signature != "" {
-			sb.WriteString(fmt.Sprintf("%s- %s: %s\n", 
-				indentStr, symbol.Kind, symbol.Signature))
-		} else {
-			sb.WriteString(fmt.Sprintf("%s- %s: %s (lines %d-%d)\n", 
-				indentStr, symbol.Kind, symbol.Name, symbol.StartLine, symbol.EndLine))
-		}
-	case Full:
-		sb.WriteString(fmt.Sprintf("%s- %s (lines %d-%d):\n", 
-			indentStr, symbol.Kind, symbol.StartLine, symbol.EndLine))
-		if symbol.Signature != "" {
-			sb.WriteString(fmt.Sprintf("%s  ```\n%s  %s\n%s  ```\n", 
-				indentStr, indentStr, symbol.Signature, indentStr))
-		}
+	if detailLevel >= Standard {
+		symbol.Signature = strings.TrimSpace(string(content[node.StartByte():node.EndByte()]))
 	}
-	
-	// Format children if any
-	for _, child := range symbol.Children {
-		formatSymbol(sb, child, detailLevel, indent+1)
+}
+
+func extractDecoratedDefinition(node *sitter.Node, content []byte, symbol *Symbol, detailLevel DetailLevel) {
+	// For Python decorated definitions, extract the actual definition
+	for i := 0; i < int(node.ChildCount()); i++ {
+		child := node.Child(i)
+		if child.Type() == "function_definition" || child.Type() == "class_definition" {
+			extractSymbolDetails(child, content, symbol, detailLevel)
+			return
+		}
 	}
 }
