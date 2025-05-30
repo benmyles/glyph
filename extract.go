@@ -68,7 +68,7 @@ func extractSymbolsFromNode(node *sitter.Node, filePath string, content []byte, 
 	// Check if this node represents a symbol we want to extract
 	if isSymbolNode(nodeType) {
 		symbol := Symbol{
-			Kind:      nodeType,
+			Kind:      mapSymbolType(nodeType),
 			StartLine: node.StartPoint().Row + 1,
 			EndLine:   node.EndPoint().Row + 1,
 			FilePath:  filePath,
@@ -133,6 +133,56 @@ func isSymbolNode(nodeType string) bool {
 	}
 	
 	return symbolTypes[nodeType]
+}
+
+// mapSymbolType maps verbose tree-sitter node types to shorter, more token-efficient names
+func mapSymbolType(nodeType string) string {
+	typeMap := map[string]string{
+		// General mappings
+		"function_declaration":    "func",
+		"method_declaration":      "method",
+		"class_declaration":       "class",
+		"interface_declaration":   "interface",
+		"type_alias_declaration":  "type_alias",
+		"variable_declaration":    "var",
+		"function_definition":     "func",
+		"class_definition":        "class",
+		"field_declaration":       "field",
+		
+		// Go specific
+		"function_item":           "func",
+		"struct_item":             "struct",
+		"type_spec":               "type",
+		"method_spec":             "method",
+		"const_spec":              "const",
+		"var_spec":                "var",
+		
+		// JavaScript/TypeScript specific
+		"lexical_declaration":     "var",
+		
+		// Python specific
+		"decorated_definition":    "decorated",
+		
+		// Rust specific
+		"enum_item":               "enum",
+		"trait_item":              "trait",
+		"impl_item":               "impl",
+		
+		// Java specific
+		"constructor_declaration": "constructor",
+		"record_declaration":      "record",
+		"enum_declaration":        "enum",
+		"annotation_type_declaration": "annotation",
+		"constant_declaration":    "const",
+		"static_initializer":      "static_init",
+		"instance_initializer":    "init",
+		"compact_constructor_declaration": "constructor",
+	}
+	
+	if mapped, ok := typeMap[nodeType]; ok {
+		return mapped
+	}
+	return nodeType
 }
 
 func extractSymbolDetails(node *sitter.Node, content []byte, symbol *Symbol, detailLevel DetailLevel) {
@@ -347,8 +397,14 @@ func extractConstructorDetails(node *sitter.Node, content []byte, symbol *Symbol
 }
 
 func extractInitializerDetails(node *sitter.Node, content []byte, symbol *Symbol, detailLevel DetailLevel) {
-	// For static/instance initializers, use the node type as the name
-	symbol.Name = strings.Replace(node.Type(), "_", " ", -1)
+	// For static/instance initializers, use a descriptive name
+	if node.Type() == "static_initializer" {
+		symbol.Name = "static block"
+	} else if node.Type() == "instance_initializer" {
+		symbol.Name = "instance block"
+	} else {
+		symbol.Name = strings.Replace(node.Type(), "_", " ", -1)
+	}
 	
 	if detailLevel >= Standard {
 		symbol.Signature = strings.TrimSpace(string(content[node.StartByte():node.EndByte()]))

@@ -74,11 +74,11 @@ var Config = map[string]string{
 	}{
 		{
 			detail:   "minimal",
-			contains: []string{"type_spec: Server", "method_declaration: Start", "function_declaration: main"},
+			contains: []string{"type: Server", "method: Start", "func: main"},
 		},
 		{
 			detail:   "standard",
-			contains: []string{"type_spec: Server struct", "func (s *Server) Start() error", "func main()"},
+			contains: []string{"type: Server struct", "func (s *Server) Start() error", "func main()"},
 		},
 		{
 			detail:   "full",
@@ -157,10 +157,10 @@ public class DataLabCli implements Callable<Integer> {
 		{
 			detail:   "minimal",
 			contains: []string{
-				"class_declaration: DataLabCli",
-				"field_declaration: baseUrl",
-				"class_declaration: SubmitCommand",
-				"field_declaration: maxPages",
+				"class: DataLabCli",
+				"field: baseUrl",
+				"class: SubmitCommand",
+				"field: maxPages",
 			},
 		},
 		{
@@ -359,19 +359,19 @@ public class Example<T extends Comparable<T>> {
 		{
 			detail:   "minimal",
 			contains: []string{
-				"class_declaration: Example",
-				"field_declaration: VERSION",
-				"field_declaration: name",
-				"constructor_declaration: Example",
-				"method_declaration: getName",
-				"class_declaration: Builder",
-				"interface_declaration: Processor",
-				"enum_declaration: Status",
-				"record_declaration: Person",
-				"interface_declaration: Shape",
-				"class_declaration: Circle",
-				"annotation_type_declaration: Benchmark",
-				"static_initializer: static initializer",
+				"class: Example",
+				"field: VERSION",
+				"field: name",
+				"constructor: Example",
+				"method: getName",
+				"class: Builder",
+				"interface: Processor",
+				"enum: Status",
+				"record: Person",
+				"interface: Shape",
+				"class: Circle",
+				"annotation: Benchmark",
+				"static_init: static block",
 			},
 			notContains: []string{
 				"lambda_expression",

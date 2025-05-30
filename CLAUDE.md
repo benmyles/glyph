@@ -6,6 +6,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 glyph is a Model Context Protocol (MCP) server written in Go that extracts symbol outlines from codebases using tree-sitter parsing. It helps LLM coding agents understand code structure by providing clean, multi-file symbol maps.
 
+## Installation
+
+### macOS
+
+Install Go:
+```shell
+$ brew install go
+```
+
+Install the latest version of glyph:
+```shell
+$ GOBIN=/usr/local/bin go install "github.com/benmyles/glyph@latest"
+```
+
 ## Architecture
 
 The project uses:
@@ -26,7 +40,7 @@ make test
 
 ### Installing
 ```bash
-make install DESTDIR=/path/to/install/dir
+make install DESTDIR=/usr/local/bin
 ```
 
 ### Cleaning
@@ -49,6 +63,7 @@ go mod tidy      # Update dependencies
 - Output format should be optimized for LLM context windows
 - Detail levels should be configurable
 - All file patterns must be absolute paths - relative paths are not supported
+- Symbol types use concise names (e.g., `func` instead of `function_declaration`) to minimize token usage
 
 ## Documentation
 

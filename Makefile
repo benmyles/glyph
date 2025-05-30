@@ -34,7 +34,8 @@ install:
 	fi
 	@echo "Installing $(BINARY_NAME) to $(DESTDIR)"
 	@mkdir -p $(DESTDIR)
-	@cp $(BINARY_NAME) $(DESTDIR)/
+	@rm -f $(DESTDIR)/$(BINARY_NAME)
+	@cp -f $(BINARY_NAME) $(DESTDIR)/
 	@echo "Installation complete: $(DESTDIR)/$(BINARY_NAME)"
 
 help:
