@@ -1,0 +1,59 @@
+package com.example.enums;
+
+/**
+ * Example enum demonstrating various enum features
+ */
+public enum Status {
+    // Enum constants with parameters
+    PENDING("Pending", 0, false),
+    IN_PROGRESS("In Progress", 1, true),
+    COMPLETED("Completed", 2, false),
+    FAILED("Failed", -1, false);
+    
+    // Fields
+    private final String displayName;
+    private final int code;
+    private final boolean active;
+    
+    // Constructor
+    Status(String displayName, int code, boolean active) {
+        this.displayName = displayName;
+        this.code = code;
+        this.active = active;
+    }
+    
+    // Getter methods
+    public String getDisplayName() {
+        return displayName;
+    }
+    
+    public int getCode() {
+        return code;
+    }
+    
+    public boolean isActive() {
+        return active;
+    }
+    
+    // Instance method
+    public String getDescription() {
+        return String.format("%s (code: %d, active: %b)", 
+                           displayName, code, active);
+    }
+    
+    // Static method
+    public static Status fromCode(int code) {
+        for (Status status : values()) {
+            if (status.code == code) {
+                return status;
+            }
+        }
+        throw new IllegalArgumentException("Unknown status code: " + code);
+    }
+    
+    // Override toString
+    @Override
+    public String toString() {
+        return displayName;
+    }
+} 

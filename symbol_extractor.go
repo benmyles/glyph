@@ -105,7 +105,7 @@ func (e *SymbolExtractor) extractSymbolFromMatch(match *sitter.QueryMatch, query
 		case "name":
 			nameNode = node
 			symbol.Name = string(content[node.StartByte():node.EndByte()])
-		case "function", "method", "class", "interface", "type", "const", "var", "struct", "enum", "record", "annotation", "constructor":
+		case "function", "method", "class", "interface", "type", "const", "var", "struct", "enum", "record", "annotation", "constructor", "field":
 			mainNode = node
 			symbol.StartLine = node.StartPoint().Row + 1
 			symbol.EndLine = node.EndPoint().Row + 1
@@ -165,26 +165,30 @@ func (e *SymbolExtractor) extractDeclarationSignature(node *sitter.Node, content
 // mapSymbolKind maps query symbol types to display kinds
 func mapSymbolKind(symbolType string) string {
 	kindMap := map[string]string{
-		"functions":           "func",
-		"methods":             "method",
-		"classes":             "class",
-		"interfaces":          "interface",
-		"types":               "type",
-		"constants":           "const",
-		"variables":           "var",
-		"structs":             "struct",
-		"enums":               "enum",
-		"records":             "record",
-		"annotations":         "annotation",
-		"constructors":        "constructor",
-		"fields":              "field",
-		"arrow_functions":     "func",
-		"async_functions":     "func",
-		"decorated_functions": "func",
-		"decorated_classes":   "class",
-		"assignments":         "var",
-		"type_aliases":        "type",
-		"properties":          "property",
+		"functions":            "func",
+		"generator_functions":  "func",
+		"arrow_functions":      "func",
+		"function_expressions": "func",
+		"methods":              "method",
+		"classes":              "class",
+		"interfaces":           "interface",
+		"types":                "type",
+		"constants":            "const",
+		"variables":            "var",
+		"structs":              "struct",
+		"enums":                "enum",
+		"records":              "record",
+		"annotations":          "annotation",
+		"constructors":         "constructor",
+		"fields":               "field",
+		"interface_constants":  "field",
+		"annotation_methods":   "method",
+		"async_functions":      "func",
+		"decorated_functions":  "func",
+		"decorated_classes":    "class",
+		"assignments":          "var",
+		"type_aliases":         "type",
+		"properties":           "property",
 	}
 
 	if mapped, ok := kindMap[symbolType]; ok {

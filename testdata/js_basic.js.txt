@@ -1,0 +1,137 @@
+// Basic JavaScript constructs
+
+// Variables
+const API_URL = 'https://api.example.com';
+let currentUser = null;
+var isDebug = true;
+
+// Arrow functions
+const add = (a, b) => a + b;
+const multiply = (x, y) => {
+    return x * y;
+};
+
+// Regular functions
+function greet(name) {
+    return `Hello, ${name}!`;
+}
+
+function calculateTotal(items) {
+    return items.reduce((sum, item) => sum + item.price, 0);
+}
+
+// Async functions
+async function fetchUser(id) {
+    const response = await fetch(`${API_URL}/users/${id}`);
+    return response.json();
+}
+
+async function saveUser(user) {
+    try {
+        const response = await fetch(`${API_URL}/users`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(user)
+        });
+        return response.json();
+    } catch (error) {
+        console.error('Failed to save user:', error);
+        throw error;
+    }
+}
+
+// Classes
+class User {
+    constructor(name, email) {
+        this.name = name;
+        this.email = email;
+        this.createdAt = new Date();
+    }
+
+    getName() {
+        return this.name;
+    }
+
+    setName(name) {
+        this.name = name;
+    }
+
+    getEmail() {
+        return this.email;
+    }
+
+    toString() {
+        return `User(${this.name}, ${this.email})`;
+    }
+
+    static fromJSON(json) {
+        return new User(json.name, json.email);
+    }
+}
+
+class AdminUser extends User {
+    constructor(name, email, permissions) {
+        super(name, email);
+        this.permissions = permissions || [];
+    }
+
+    hasPermission(permission) {
+        return this.permissions.includes(permission);
+    }
+
+    addPermission(permission) {
+        if (!this.hasPermission(permission)) {
+            this.permissions.push(permission);
+        }
+    }
+
+    static createSuperAdmin(name, email) {
+        return new AdminUser(name, email, ['read', 'write', 'admin']);
+    }
+}
+
+// Object with methods
+const userService = {
+    users: [],
+
+    addUser(user) {
+        this.users.push(user);
+    },
+
+    findUser(email) {
+        return this.users.find(user => user.email === email);
+    },
+
+    removeUser(email) {
+        const index = this.users.findIndex(user => user.email === email);
+        if (index !== -1) {
+            this.users.splice(index, 1);
+        }
+    }
+};
+
+// Function expressions
+const processData = function(data) {
+    return data.map(item => ({
+        ...item,
+        processed: true,
+        timestamp: Date.now()
+    }));
+};
+
+// IIFE (Immediately Invoked Function Expression)
+(function() {
+    console.log('Application initialized');
+})();
+
+// Generator function
+function* numberGenerator() {
+    let i = 0;
+    while (true) {
+        yield i++;
+    }
+}
+
+// Export (ES6 modules)
+export { User, AdminUser, userService };
+export default greet; 

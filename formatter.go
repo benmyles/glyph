@@ -43,8 +43,20 @@ func formatSymbol(sb *strings.Builder, symbol Symbol, detailLevel DetailLevel, i
 			indentStr, symbol.Kind, symbol.Name, symbol.StartLine))
 	case Standard:
 		if symbol.Signature != "" {
-			sb.WriteString(fmt.Sprintf("%s- %s: %s\n",
-				indentStr, symbol.Kind, symbol.Signature))
+			// For variables and constants, show name with type/signature
+			if symbol.Kind == "var" || symbol.Kind == "const" {
+				// Avoid duplicate names when signature equals name
+				if symbol.Signature == symbol.Name {
+					sb.WriteString(fmt.Sprintf("%s- %s: %s\n",
+						indentStr, symbol.Kind, symbol.Name))
+				} else {
+					sb.WriteString(fmt.Sprintf("%s- %s: %s %s\n",
+						indentStr, symbol.Kind, symbol.Name, symbol.Signature))
+				}
+			} else {
+				sb.WriteString(fmt.Sprintf("%s- %s: %s\n",
+					indentStr, symbol.Kind, symbol.Signature))
+			}
 		} else {
 			sb.WriteString(fmt.Sprintf("%s- %s: %s (lines %d-%d)\n",
 				indentStr, symbol.Kind, symbol.Name, symbol.StartLine, symbol.EndLine))

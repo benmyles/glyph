@@ -21,6 +21,46 @@ func ReadFile(filePath string) ([]byte, error) {
 
 // GetLanguageForFile determines the Tree-sitter language for a file
 func GetLanguageForFile(filePath string) (*sitter.Language, error) {
+	// For test files with .txt extension, check the filename pattern
+	if strings.HasSuffix(filePath, ".txt") {
+		filename := filepath.Base(filePath)
+		if strings.Contains(filename, "_") {
+			// Extract language from filename pattern like "java_basic_class.java.txt"
+			parts := strings.Split(filename, "_")
+			if len(parts) > 0 {
+				lang := parts[0]
+				switch lang {
+				case "java":
+					return java.GetLanguage(), nil
+				case "go":
+					return golang.GetLanguage(), nil
+				case "js", "javascript":
+					return javascript.GetLanguage(), nil
+				case "ts", "typescript":
+					return typescript.GetLanguage(), nil
+				case "py", "python":
+					return python.GetLanguage(), nil
+				}
+			}
+		}
+		// Also check for patterns like "something.java.txt"
+		if strings.Contains(filename, ".java.txt") {
+			return java.GetLanguage(), nil
+		}
+		if strings.Contains(filename, ".go.txt") {
+			return golang.GetLanguage(), nil
+		}
+		if strings.Contains(filename, ".js.txt") || strings.Contains(filename, ".jsx.txt") {
+			return javascript.GetLanguage(), nil
+		}
+		if strings.Contains(filename, ".ts.txt") || strings.Contains(filename, ".tsx.txt") {
+			return typescript.GetLanguage(), nil
+		}
+		if strings.Contains(filename, ".py.txt") {
+			return python.GetLanguage(), nil
+		}
+	}
+
 	ext := strings.ToLower(filepath.Ext(filePath))
 
 	switch ext {
@@ -35,7 +75,7 @@ func GetLanguageForFile(filePath string) (*sitter.Language, error) {
 	case ".java":
 		return java.GetLanguage(), nil
 	default:
-		return nil, fmt.Errorf("unsupported file type: %s", ext)
+		return nil, fmt.Errorf("unsupported file type: %s", filePath)
 	}
 }
 
