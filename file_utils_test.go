@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-func TestGetParserForFile(t *testing.T) {
+func TestGetLanguageForFile(t *testing.T) {
 	tests := []struct {
 		filePath string
-		wantNil  bool
+		wantErr  bool
 	}{
 		{"main.go", false},
 		{"app.js", false},
@@ -19,17 +19,20 @@ func TestGetParserForFile(t *testing.T) {
 		{"style.css", true},
 		{"readme.md", true},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.filePath, func(t *testing.T) {
-			lang, parser := getParserForFile(tt.filePath)
-			if tt.wantNil {
-				if lang != nil || parser != nil {
-					t.Errorf("Expected nil parser for %s", tt.filePath)
+			lang, err := GetLanguageForFile(tt.filePath)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("Expected error for %s", tt.filePath)
 				}
 			} else {
-				if lang == nil || parser == nil {
-					t.Errorf("Expected non-nil parser for %s", tt.filePath)
+				if err != nil {
+					t.Errorf("Unexpected error for %s: %v", tt.filePath, err)
+				}
+				if lang == nil {
+					t.Errorf("Expected non-nil language for %s", tt.filePath)
 				}
 			}
 		})
@@ -39,7 +42,7 @@ func TestGetParserForFile(t *testing.T) {
 func TestFindFiles(t *testing.T) {
 	// Create test directory structure
 	testDir := t.TempDir()
-	
+
 	// Create test files
 	testFiles := []string{
 		"main.go",
@@ -49,7 +52,7 @@ func TestFindFiles(t *testing.T) {
 		"test/main_test.go",
 		"docs/readme.md",
 	}
-	
+
 	for _, file := range testFiles {
 		path := filepath.Join(testDir, file)
 		dir := filepath.Dir(path)
@@ -60,7 +63,7 @@ func TestFindFiles(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	
+
 	tests := []struct {
 		pattern  string
 		expected int
@@ -70,15 +73,15 @@ func TestFindFiles(t *testing.T) {
 		{filepath.Join(testDir, "src/*.go"), 2},
 		{filepath.Join(testDir, "**/*_test.go"), 1},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.pattern, func(t *testing.T) {
-			files, err := findFiles(tt.pattern)
+			files, err := FindFiles(tt.pattern)
 			if err != nil {
-				t.Fatalf("findFiles(%q) error = %v", tt.pattern, err)
+				t.Fatalf("FindFiles(%q) error = %v", tt.pattern, err)
 			}
 			if len(files) != tt.expected {
-				t.Errorf("findFiles(%q) returned %d files, want %d", tt.pattern, len(files), tt.expected)
+				t.Errorf("FindFiles(%q) returned %d files, want %d", tt.pattern, len(files), tt.expected)
 			}
 		})
 	}

@@ -73,7 +73,7 @@ func runCLI(args []string) {
 	}
 
 	// Extract symbols
-	result, err := extractSymbols(pattern, *detail)
+	result, err := ExtractSymbols(pattern, *detail)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -130,7 +130,7 @@ func extractSymbolsHandler(_ context.Context, request mcp.CallToolRequest) (*mcp
 	}
 
 	// Extract symbols from files matching the pattern
-	result, err := extractSymbols(pattern, detail)
+	result, err := ExtractSymbols(pattern, detail)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to extract symbols: %v", err)), nil
 	}

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,18 +14,43 @@ import (
 	"github.com/smacker/go-tree-sitter/typescript/typescript"
 )
 
+// ReadFile reads the content of a file
+func ReadFile(filePath string) ([]byte, error) {
+	return os.ReadFile(filePath)
+}
 
-func findFiles(pattern string) ([]string, error) {
+// GetLanguageForFile determines the Tree-sitter language for a file
+func GetLanguageForFile(filePath string) (*sitter.Language, error) {
+	ext := strings.ToLower(filepath.Ext(filePath))
+
+	switch ext {
+	case ".go":
+		return golang.GetLanguage(), nil
+	case ".js", ".jsx":
+		return javascript.GetLanguage(), nil
+	case ".ts", ".tsx":
+		return typescript.GetLanguage(), nil
+	case ".py":
+		return python.GetLanguage(), nil
+	case ".java":
+		return java.GetLanguage(), nil
+	default:
+		return nil, fmt.Errorf("unsupported file type: %s", ext)
+	}
+}
+
+// FindFiles finds files matching a glob pattern
+func FindFiles(pattern string) ([]string, error) {
 	// If pattern contains **, use filepath.Walk for recursive matching
 	if strings.Contains(pattern, "**") {
 		var files []string
-		
+
 		// Split pattern at **
 		parts := strings.Split(pattern, "**")
 		if len(parts) != 2 {
 			return nil, fmt.Errorf("invalid pattern with **: %s", pattern)
 		}
-		
+
 		baseDir := parts[0]
 		if baseDir == "" {
 			baseDir = "."
@@ -34,16 +58,16 @@ func findFiles(pattern string) ([]string, error) {
 			// Remove trailing slash
 			baseDir = strings.TrimSuffix(baseDir, "/")
 		}
-		
+
 		// Get the file pattern after **
 		filePattern := parts[1]
 		filePattern = strings.TrimPrefix(filePattern, "/")
-		
+
 		err := filepath.Walk(baseDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return nil // Skip errors
 			}
-			
+
 			if !info.IsDir() {
 				// Check if the filename matches the pattern
 				matched, _ := filepath.Match(filePattern, filepath.Base(path))
@@ -53,11 +77,11 @@ func findFiles(pattern string) ([]string, error) {
 			}
 			return nil
 		})
-		
+
 		if err != nil {
 			return nil, err
 		}
-		
+
 		return files, nil
 	}
 
@@ -68,53 +92,4 @@ func findFiles(pattern string) ([]string, error) {
 	}
 
 	return matches, nil
-}
-
-func extractFileSymbols(filePath string, detailLevel DetailLevel) ([]Symbol, error) {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, err
-	}
-
-	// Determine language and parser
-	_, parser := getParserForFile(filePath)
-	if parser == nil {
-		return nil, fmt.Errorf("unsupported file type: %s", filePath)
-	}
-
-	// Parse the file
-	tree, err := parser.ParseCtx(context.Background(), nil, content)
-	if err != nil {
-		return nil, err
-	}
-
-	// Extract symbols from AST
-	var symbols []Symbol
-	extractSymbolsFromNode(tree.RootNode(), filePath, content, &symbols, detailLevel)
-	
-	return symbols, nil
-}
-
-func getParserForFile(filePath string) (*sitter.Language, *sitter.Parser) {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	
-	var lang *sitter.Language
-	switch ext {
-	case ".go":
-		lang = golang.GetLanguage()
-	case ".js", ".jsx":
-		lang = javascript.GetLanguage()
-	case ".ts", ".tsx":
-		lang = typescript.GetLanguage()
-	case ".py":
-		lang = python.GetLanguage()
-	case ".java":
-		lang = java.GetLanguage()
-	default:
-		return nil, nil
-	}
-	
-	parser := sitter.NewParser()
-	parser.SetLanguage(lang)
-	return lang, parser
 }
