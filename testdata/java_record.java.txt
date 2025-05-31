@@ -1,0 +1,67 @@
+package com.example.records;
+
+import java.time.LocalDateTime;
+import java.util.Objects;
+
+/**
+ * Example record demonstrating record features (Java 14+)
+ */
+public record Person(String name, int age, String email, LocalDateTime createdAt) {
+    
+    // Static field
+    public static final int MIN_AGE = 0;
+    public static final int MAX_AGE = 150;
+    
+    // Compact constructor with validation
+    public Person {
+        Objects.requireNonNull(name, "Name cannot be null");
+        Objects.requireNonNull(email, "Email cannot be null");
+        
+        if (age < MIN_AGE || age > MAX_AGE) {
+            throw new IllegalArgumentException(
+                "Age must be between " + MIN_AGE + " and " + MAX_AGE);
+        }
+        
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
+    
+    // Alternative constructor
+    public Person(String name, int age, String email) {
+        this(name, age, email, LocalDateTime.now());
+    }
+    
+    // Instance methods
+    public boolean isAdult() {
+        return age >= 18;
+    }
+    
+    public boolean isMinor() {
+        return age < 18;
+    }
+    
+    public String getDisplayName() {
+        return name + " (" + age + " years old)";
+    }
+    
+    // Static factory method
+    public static Person createChild(String name, int age) {
+        if (age >= 18) {
+            throw new IllegalArgumentException("Child must be under 18");
+        }
+        return new Person(name, age, "no-email@example.com");
+    }
+    
+    // Static utility method
+    public static boolean isValidAge(int age) {
+        return age >= MIN_AGE && age <= MAX_AGE;
+    }
+    
+    // Override toString for better formatting
+    @Override
+    public String toString() {
+        return String.format("Person{name='%s', age=%d, email='%s', createdAt=%s}", 
+                           name, age, email, createdAt);
+    }
+} 

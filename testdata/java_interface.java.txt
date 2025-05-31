@@ -1,0 +1,59 @@
+package com.example.interfaces;
+
+import java.util.List;
+
+/**
+ * Example interface demonstrating various interface features
+ */
+public interface DataProcessor<T> {
+    // Constant (implicitly public static final)
+    String DEFAULT_NAME = "processor";
+    int MAX_ITEMS = 1000;
+    
+    // Abstract method
+    void process(T item);
+    
+    // Method with parameters and return type
+    List<T> processAll(List<T> items);
+    
+    // Method with exceptions
+    T processWithValidation(T item) throws IllegalArgumentException;
+    
+    // Default method (Java 8+)
+    default void initialize() {
+        System.out.println("Initializing " + DEFAULT_NAME);
+    }
+    
+    // Default method with implementation
+    default boolean isValid(T item) {
+        return item != null;
+    }
+    
+    // Static method (Java 8+)
+    static void printInfo() {
+        System.out.println("DataProcessor interface");
+    }
+    
+    // Static method with parameters
+    static <U> DataProcessor<U> createDefault() {
+        return new DataProcessor<U>() {
+            @Override
+            public void process(U item) {
+                // Default implementation
+            }
+            
+            @Override
+            public List<U> processAll(List<U> items) {
+                return items;
+            }
+            
+            @Override
+            public U processWithValidation(U item) {
+                if (!isValid(item)) {
+                    throw new IllegalArgumentException("Invalid item");
+                }
+                return item;
+            }
+        };
+    }
+} 

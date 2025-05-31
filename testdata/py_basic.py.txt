@@ -1,0 +1,239 @@
+# Basic Python constructs
+
+import os
+import sys
+from typing import List, Dict, Optional, Union, Callable
+from dataclasses import dataclass
+from abc import ABC, abstractmethod
+
+# Constants
+VERSION = "1.0.0"
+MAX_RETRIES = 3
+DEFAULT_TIMEOUT = 30
+
+# Type aliases
+UserID = str
+ConfigDict = Dict[str, Union[str, int, bool]]
+
+# Data classes
+@dataclass
+class User:
+    id: UserID
+    name: str
+    email: str
+    age: int
+    is_active: bool = True
+
+    def __post_init__(self):
+        if self.age < 0:
+            raise ValueError("Age cannot be negative")
+
+    def get_display_name(self) -> str:
+        return f"{self.name} ({self.email})"
+
+    def is_adult(self) -> bool:
+        return self.age >= 18
+
+# Regular classes
+class UserRepository:
+    def __init__(self, connection_string: str):
+        self.connection_string = connection_string
+        self._users: Dict[UserID, User] = {}
+
+    def save(self, user: User) -> None:
+        """Save a user to the repository."""
+        self._users[user.id] = user
+
+    def find_by_id(self, user_id: UserID) -> Optional[User]:
+        """Find a user by ID."""
+        return self._users.get(user_id)
+
+    def find_all(self) -> List[User]:
+        """Get all users."""
+        return list(self._users.values())
+
+    def delete(self, user_id: UserID) -> bool:
+        """Delete a user by ID."""
+        if user_id in self._users:
+            del self._users[user_id]
+            return True
+        return False
+
+    @property
+    def count(self) -> int:
+        """Get the number of users."""
+        return len(self._users)
+
+    @staticmethod
+    def create_connection(host: str, port: int) -> str:
+        """Create a connection string."""
+        return f"postgresql://{host}:{port}/users"
+
+    @classmethod
+    def from_config(cls, config: ConfigDict) -> 'UserRepository':
+        """Create repository from configuration."""
+        host = config.get('host', 'localhost')
+        port = config.get('port', 5432)
+        connection_string = cls.create_connection(str(host), int(port))
+        return cls(connection_string)
+
+# Abstract base class
+class BaseService(ABC):
+    def __init__(self, name: str):
+        self.name = name
+
+    @abstractmethod
+    def process(self, data: any) -> any:
+        """Process data - must be implemented by subclasses."""
+        pass
+
+    @abstractmethod
+    def validate(self, data: any) -> bool:
+        """Validate data - must be implemented by subclasses."""
+        pass
+
+    def get_name(self) -> str:
+        return self.name
+
+# Concrete implementation
+class UserService(BaseService):
+    def __init__(self, repository: UserRepository):
+        super().__init__("UserService")
+        self.repository = repository
+
+    def process(self, user_data: Dict[str, any]) -> User:
+        """Process user data into a User object."""
+        if not self.validate(user_data):
+            raise ValueError("Invalid user data")
+        
+        return User(
+            id=user_data['id'],
+            name=user_data['name'],
+            email=user_data['email'],
+            age=user_data['age'],
+            is_active=user_data.get('is_active', True)
+        )
+
+    def validate(self, user_data: Dict[str, any]) -> bool:
+        """Validate user data."""
+        required_fields = ['id', 'name', 'email', 'age']
+        return all(field in user_data for field in required_fields)
+
+    def create_user(self, name: str, email: str, age: int) -> User:
+        """Create and save a new user."""
+        user_id = self._generate_id()
+        user = User(id=user_id, name=name, email=email, age=age)
+        self.repository.save(user)
+        return user
+
+    def _generate_id(self) -> str:
+        """Generate a unique user ID."""
+        import uuid
+        return str(uuid.uuid4())
+
+# Decorators
+def retry(max_attempts: int = 3):
+    """Decorator to retry function calls."""
+    def decorator(func: Callable) -> Callable:
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_attempts - 1:
+                        raise e
+                    print(f"Attempt {attempt + 1} failed: {e}")
+            return None
+        return wrapper
+    return decorator
+
+def log_calls(func: Callable) -> Callable:
+    """Decorator to log function calls."""
+    def wrapper(*args, **kwargs):
+        print(f"Calling {func.__name__} with args: {args}, kwargs: {kwargs}")
+        result = func(*args, **kwargs)
+        print(f"{func.__name__} returned: {result}")
+        return result
+    return wrapper
+
+# Functions with decorators
+@retry(max_attempts=3)
+@log_calls
+def fetch_user_data(user_id: str) -> Dict[str, any]:
+    """Fetch user data from external API."""
+    # Simulate API call
+    if user_id == "invalid":
+        raise ValueError("Invalid user ID")
+    
+    return {
+        "id": user_id,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "age": 30
+    }
+
+@log_calls
+def process_users(users: List[User], processor: Callable[[User], None]) -> None:
+    """Process a list of users with a given processor function."""
+    for user in users:
+        processor(user)
+
+# Regular functions
+def create_default_config() -> ConfigDict:
+    """Create default configuration."""
+    return {
+        "host": "localhost",
+        "port": 5432,
+        "timeout": DEFAULT_TIMEOUT,
+        "debug": False
+    }
+
+def validate_email(email: str) -> bool:
+    """Validate email format."""
+    import re
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+def calculate_age(birth_year: int) -> int:
+    """Calculate age from birth year."""
+    from datetime import datetime
+    current_year = datetime.now().year
+    return current_year - birth_year
+
+# Generator function
+def user_generator(users: List[User]) -> User:
+    """Generator that yields users one by one."""
+    for user in users:
+        if user.is_active:
+            yield user
+
+# Context manager
+class DatabaseConnection:
+    def __init__(self, connection_string: str):
+        self.connection_string = connection_string
+        self.connection = None
+
+    def __enter__(self):
+        print(f"Connecting to {self.connection_string}")
+        self.connection = "mock_connection"
+        return self.connection
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        print("Closing database connection")
+        self.connection = None
+
+# Main execution
+def main():
+    """Main function."""
+    config = create_default_config()
+    repository = UserRepository.from_config(config)
+    service = UserService(repository)
+    
+    # Create some users
+    user1 = service.create_user("Alice", "alice@example.com", 25)
+    user2 = service.create_user("Bob", "bob@example.com", 30)
+    
+    print(f"Created {repository.count} users")
+
+if __name__ == "__main__":
+    main() 

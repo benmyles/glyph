@@ -1,0 +1,30 @@
+package com.example.annotations;
+
+import java.lang.annotation.*;
+
+/**
+ * Example annotation type demonstrating annotation features
+ */
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.METHOD, ElementType.TYPE, ElementType.FIELD})
+@Documented
+public @interface Benchmark {
+    
+    // Annotation elements
+    String value() default "";
+    
+    String description() default "Performance benchmark";
+    
+    int iterations() default 1;
+    
+    boolean enabled() default true;
+    
+    String[] tags() default {};
+    
+    TimeUnit unit() default TimeUnit.MILLISECONDS;
+    
+    // Nested enum
+    enum TimeUnit {
+        NANOSECONDS, MICROSECONDS, MILLISECONDS, SECONDS
+    }
+} 

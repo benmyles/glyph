@@ -1,0 +1,206 @@
+// Modern JavaScript features
+
+// Destructuring and spread
+const config = {
+    api: {
+        baseUrl: 'https://api.example.com',
+        timeout: 5000
+    },
+    features: ['auth', 'logging', 'caching']
+};
+
+const { api: { baseUrl, timeout }, features } = config;
+
+// Template literals and tagged templates
+function highlight(strings, ...values) {
+    return strings.reduce((result, string, i) => {
+        return result + string + (values[i] ? `<mark>${values[i]}</mark>` : '');
+    }, '');
+}
+
+const message = highlight`Welcome ${currentUser?.name || 'Guest'}!`;
+
+// Classes with private fields and methods
+class DataStore {
+    #data = new Map();
+    #listeners = [];
+
+    constructor(initialData = {}) {
+        Object.entries(initialData).forEach(([key, value]) => {
+            this.#data.set(key, value);
+        });
+    }
+
+    get(key) {
+        return this.#data.get(key);
+    }
+
+    set(key, value) {
+        const oldValue = this.#data.get(key);
+        this.#data.set(key, value);
+        this.#notifyListeners(key, value, oldValue);
+    }
+
+    #notifyListeners(key, newValue, oldValue) {
+        this.#listeners.forEach(listener => {
+            listener({ key, newValue, oldValue });
+        });
+    }
+
+    subscribe(listener) {
+        this.#listeners.push(listener);
+        return () => {
+            const index = this.#listeners.indexOf(listener);
+            if (index > -1) {
+                this.#listeners.splice(index, 1);
+            }
+        };
+    }
+
+    static create(data) {
+        return new DataStore(data);
+    }
+}
+
+// Async/await with error handling
+class ApiClient {
+    constructor(baseUrl, options = {}) {
+        this.baseUrl = baseUrl;
+        this.options = { timeout: 5000, ...options };
+    }
+
+    async request(endpoint, options = {}) {
+        const url = `${this.baseUrl}${endpoint}`;
+        const config = { ...this.options, ...options };
+
+        try {
+            const response = await fetch(url, config);
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            return await response.json();
+        } catch (error) {
+            console.error(`API request failed: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async get(endpoint) {
+        return this.request(endpoint, { method: 'GET' });
+    }
+
+    async post(endpoint, data) {
+        return this.request(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+    }
+}
+
+// Proxy for reactive objects
+function createReactiveObject(target, onChange) {
+    return new Proxy(target, {
+        set(obj, prop, value) {
+            const oldValue = obj[prop];
+            obj[prop] = value;
+            onChange(prop, value, oldValue);
+            return true;
+        },
+
+        get(obj, prop) {
+            if (typeof obj[prop] === 'object' && obj[prop] !== null) {
+                return createReactiveObject(obj[prop], onChange);
+            }
+            return obj[prop];
+        }
+    });
+}
+
+// WeakMap for private data
+const privateData = new WeakMap();
+
+class SecureUser {
+    constructor(name, email, password) {
+        this.name = name;
+        this.email = email;
+        privateData.set(this, { password });
+    }
+
+    authenticate(password) {
+        const data = privateData.get(this);
+        return data && data.password === password;
+    }
+
+    changePassword(oldPassword, newPassword) {
+        if (this.authenticate(oldPassword)) {
+            privateData.set(this, { password: newPassword });
+            return true;
+        }
+        return false;
+    }
+}
+
+// Symbol for unique property keys
+const INTERNAL_STATE = Symbol('internalState');
+
+class StateMachine {
+    constructor(initialState) {
+        this[INTERNAL_STATE] = {
+            current: initialState,
+            transitions: new Map()
+        };
+    }
+
+    addTransition(from, to, condition) {
+        const key = `${from}->${to}`;
+        this[INTERNAL_STATE].transitions.set(key, condition);
+    }
+
+    transition(to) {
+        const current = this[INTERNAL_STATE].current;
+        const key = `${current}->${to}`;
+        const condition = this[INTERNAL_STATE].transitions.get(key);
+
+        if (condition && condition()) {
+            this[INTERNAL_STATE].current = to;
+            return true;
+        }
+        return false;
+    }
+
+    get state() {
+        return this[INTERNAL_STATE].current;
+    }
+}
+
+// Module pattern with closures
+const createCounter = (() => {
+    let instances = 0;
+
+    return function(initialValue = 0) {
+        instances++;
+        let count = initialValue;
+
+        return {
+            increment: () => ++count,
+            decrement: () => --count,
+            value: () => count,
+            reset: () => { count = initialValue; },
+            instanceId: instances
+        };
+    };
+})();
+
+// Export everything
+export {
+    DataStore,
+    ApiClient,
+    createReactiveObject,
+    SecureUser,
+    StateMachine,
+    createCounter,
+    highlight
+}; 

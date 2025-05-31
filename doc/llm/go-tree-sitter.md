@@ -1,1055 +1,1155 @@
-=== README.md ===
+# Comprehensive Guide to go-tree-sitter
 
-# go tree-sitter
+## Table of Contents
+1. [Introduction](#introduction)
+2. [Installation](#installation)
+3. [Basic Concepts](#basic-concepts)
+4. [Language-Specific Usage](#language-specific-usage)
+    - [Go](#working-with-go)
+    - [Java](#working-with-java)
+    - [JavaScript](#working-with-javascript)
+    - [Python](#working-with-python)
+    - [TypeScript](#working-with-typescript)
+5. [Working with AST Nodes](#working-with-ast-nodes)
+6. [Querying and Pattern Matching](#querying-and-pattern-matching)
+7. [Advanced Features](#advanced-features)
+8. [Practical Examples](#practical-examples)
+9. [Best Practices](#best-practices)
 
-[![Build Status](https://github.com/smacker/go-tree-sitter/workflows/Test/badge.svg?branch=master)](https://github.com/smacker/go-tree-sitter/actions/workflows/test.yml?query=branch%3Amaster)
-[![GoDoc](https://godoc.org/github.com/smacker/go-tree-sitter?status.svg)](https://godoc.org/github.com/smacker/go-tree-sitter)
+## Introduction
 
-Golang bindings for [tree-sitter](https://github.com/tree-sitter/tree-sitter)
+go-tree-sitter is a Go binding for the [tree-sitter](https://tree-sitter.github.io/tree-sitter/) parsing library. Tree-sitter is a parser generator tool and an incremental parsing library that builds a concrete syntax tree for a source file and efficiently updates the syntax tree as the source file is edited.
 
-## Usage
+### Key Features
+- Fast incremental parsing
+- Robust error recovery
+- Language-agnostic query system
+- Zero-copy parsing
+- Thread-safe parsing
+- Support for multiple programming languages
 
-Create a parser with a grammar:
+## Installation
+
+To use go-tree-sitter in your Go project:
+
+```bash
+go get github.com/smacker/go-tree-sitter
+```
+
+For specific language support:
+```bash
+# For Go support
+go get github.com/smacker/go-tree-sitter/golang
+
+# For Java support
+go get github.com/smacker/go-tree-sitter/java
+
+# For JavaScript support
+go get github.com/smacker/go-tree-sitter/javascript
+
+# For Python support
+go get github.com/smacker/go-tree-sitter/python
+
+# For TypeScript support
+go get github.com/smacker/go-tree-sitter/typescript/typescript
+go get github.com/smacker/go-tree-sitter/typescript/tsx
+```
+
+## Basic Concepts
+
+### Parser
+The parser is the main object that performs the parsing operation. It needs to be configured with a specific language grammar.
+
+### Tree
+A tree represents the syntax tree of an entire source code file. It's immutable and can be reused.
+
+### Node
+Nodes represent individual elements in the syntax tree (e.g., functions, variables, expressions).
+
+### Query
+Queries allow you to search for specific patterns in the syntax tree using S-expressions.
+
+## Language-Specific Usage
+
+### Working with Go
 
 ```go
-import (
-	"context"
-	"fmt"
+package main
 
-	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/smacker/go-tree-sitter/javascript"
+import (
+    "context"
+    "fmt"
+    sitter "github.com/smacker/go-tree-sitter"
+    "github.com/smacker/go-tree-sitter/golang"
 )
 
-parser := sitter.NewParser()
-parser.SetLanguage(javascript.GetLanguage())
+func parseGoCode() {
+    // Go source code
+    sourceCode := []byte(`
+package main
+
+import "fmt"
+
+func main() {
+    message := "Hello, World!"
+    fmt.Println(message)
+}
+
+func add(a, b int) int {
+    return a + b
+}
+`)
+
+    // Create parser
+    parser := sitter.NewParser()
+    parser.SetLanguage(golang.GetLanguage())
+
+    // Parse the code
+    tree, err := parser.ParseCtx(context.Background(), nil, sourceCode)
+    if err != nil {
+        panic(err)
+    }
+
+    // Get root node
+    root := tree.RootNode()
+    fmt.Printf("Root type: %s\n", root.Type()) // source_file
+
+    // Find all function declarations
+    query := `(function_declaration name: (identifier) @func_name)`
+    q, _ := sitter.NewQuery([]byte(query), golang.GetLanguage())
+    qc := sitter.NewQueryCursor()
+    qc.Exec(q, root)
+
+    fmt.Println("\nFunctions found:")
+    for {
+        m, ok := qc.NextMatch()
+        if !ok {
+            break
+        }
+        for _, c := range m.Captures {
+            fmt.Printf("- %s\n", c.Node.Content(sourceCode))
+        }
+    }
+}
 ```
 
-Parse some code:
+### Working with Java
 
 ```go
-sourceCode := []byte("let a = 1")
-tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
+package main
+
+import (
+    "context"
+    "fmt"
+    sitter "github.com/smacker/go-tree-sitter"
+    "github.com/smacker/go-tree-sitter/java"
+)
+
+func parseJavaCode() {
+    // Java source code
+    sourceCode := []byte(`
+import java.util.*;
+
+public class HelloWorld {
+    private String message;
+    
+    public HelloWorld(String message) {
+        this.message = message;
+    }
+    
+    public void printMessage() {
+        System.out.println(message);
+    }
+    
+    public static void main(String[] args) {
+        HelloWorld hw = new HelloWorld("Hello, World!");
+        hw.printMessage();
+    }
+}
+`)
+
+    parser := sitter.NewParser()
+    parser.SetLanguage(java.GetLanguage())
+
+    tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
+    root := tree.RootNode()
+
+    // Find all method declarations
+    query := `(method_declaration
+        name: (identifier) @method_name
+        parameters: (formal_parameters) @params
+    )`
+    
+    q, _ := sitter.NewQuery([]byte(query), java.GetLanguage())
+    qc := sitter.NewQueryCursor()
+    qc.Exec(q, root)
+
+    fmt.Println("Methods found:")
+    for {
+        m, ok := qc.NextMatch()
+        if !ok {
+            break
+        }
+        var methodName, params string
+        for _, c := range m.Captures {
+            captureName := q.CaptureNameForId(c.Index)
+            if captureName == "method_name" {
+                methodName = c.Node.Content(sourceCode)
+            } else if captureName == "params" {
+                params = c.Node.Content(sourceCode)
+            }
+        }
+        fmt.Printf("- %s%s\n", methodName, params)
+    }
+}
 ```
 
-Inspect the syntax tree:
+### Working with JavaScript
 
 ```go
-n := tree.RootNode()
+package main
 
-fmt.Println(n) // (program (lexical_declaration (variable_declarator (identifier) (number))))
+import (
+    "context"
+    "fmt"
+    sitter "github.com/smacker/go-tree-sitter"
+    "github.com/smacker/go-tree-sitter/javascript"
+)
 
-child := n.NamedChild(0)
-fmt.Println(child.Type()) // lexical_declaration
-fmt.Println(child.StartByte()) // 0
-fmt.Println(child.EndByte()) // 9
+func parseJavaScriptCode() {
+    sourceCode := []byte(`
+// ES6 class example
+class Calculator {
+    constructor() {
+        this.result = 0;
+    }
+    
+    add(a, b) {
+        return a + b;
+    }
+    
+    multiply(a, b) {
+        return a * b;
+    }
+}
+
+// Arrow functions
+const square = (x) => x * x;
+const greet = name => \`Hello, \${name}!\`;
+
+// Async function
+async function fetchData(url) {
+    const response = await fetch(url);
+    return response.json();
+}
+`)
+
+    parser := sitter.NewParser()
+    parser.SetLanguage(javascript.GetLanguage())
+
+    tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
+    root := tree.RootNode()
+
+    // Find all function types (regular, arrow, async)
+    query := `[
+        (function_declaration name: (identifier) @func_name)
+        (variable_declarator 
+            name: (identifier) @func_name
+            value: (arrow_function))
+        (method_definition 
+            name: (property_identifier) @func_name)
+    ]`
+    
+    q, _ := sitter.NewQuery([]byte(query), javascript.GetLanguage())
+    qc := sitter.NewQueryCursor()
+    qc.Exec(q, root)
+
+    fmt.Println("Functions and methods found:")
+    for {
+        m, ok := qc.NextMatch()
+        if !ok {
+            break
+        }
+        for _, c := range m.Captures {
+            fmt.Printf("- %s (type: %s)\n", 
+                c.Node.Content(sourceCode), 
+                c.Node.Parent().Type())
+        }
+    }
+}
 ```
 
-### Custom grammars
-
-This repository provides grammars for many common languages out of the box.
-
-But if you need support for any other language you can keep it inside your own project or publish it as a separate repository to share with the community.
-
-See explanation on how to create a grammar for go-tree-sitter [here](https://github.com/smacker/go-tree-sitter/issues/57).
-
-Known external grammars:
-
-- [Salesforce grammars](https://github.com/aheber/tree-sitter-sfapex) - including Apex, SOQL, and SOSL languages.
-- [Ruby](https://github.com/shagabutdinov/go-tree-sitter-ruby) - Deprecated, grammar is provided by main repo instead
-- [Go Template](https://github.com/mrjosh/helm-ls/tree/master/internal/tree-sitter/gotemplate) - Used for helm
-
-### Editing
-
-If your source code changes, you can update the syntax tree. This will take less time than the first parse.
+### Working with Python
 
 ```go
-// change 1 -> true
-newText := []byte("let a = true")
-tree.Edit(sitter.EditInput{
-    StartIndex:  8,
-    OldEndIndex: 9,
-    NewEndIndex: 12,
-    StartPoint: sitter.Point{
-        Row:    0,
-        Column: 8,
-    },
-    OldEndPoint: sitter.Point{
-        Row:    0,
-        Column: 9,
-    },
-    NewEndPoint: sitter.Point{
-        Row:    0,
-        Column: 12,
-    },
-})
+package main
 
-// check that it changed tree
-assert.True(n.HasChanges())
-assert.True(n.Child(0).HasChanges())
-assert.False(n.Child(0).Child(0).HasChanges()) // left side of the tree didn't change
-assert.True(n.Child(0).Child(1).HasChanges())
+import (
+    "context"
+    "fmt"
+    sitter "github.com/smacker/go-tree-sitter"
+    "github.com/smacker/go-tree-sitter/python"
+)
 
-// generate new tree
-newTree := parser.Parse(tree, newText)
+func parsePythonCode() {
+    sourceCode := []byte(`
+import math
+from typing import List, Optional
+
+class DataProcessor:
+    """A class for processing data."""
+    
+    def __init__(self, name: str):
+        self.name = name
+        self.data: List[float] = []
+    
+    def add_data(self, value: float) -> None:
+        """Add a data point."""
+        self.data.append(value)
+    
+    @property
+    def mean(self) -> Optional[float]:
+        """Calculate the mean of the data."""
+        if not self.data:
+            return None
+        return sum(self.data) / len(self.data)
+    
+    @staticmethod
+    def validate_input(value: float) -> bool:
+        """Validate input value."""
+        return not math.isnan(value) and not math.isinf(value)
+
+def main():
+    processor = DataProcessor("MyProcessor")
+    processor.add_data(10.5)
+    processor.add_data(20.3)
+    print(f"Mean: {processor.mean}")
+
+if __name__ == "__main__":
+    main()
+`)
+
+    parser := sitter.NewParser()
+    parser.SetLanguage(python.GetLanguage())
+
+    tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
+    root := tree.RootNode()
+
+    // Find all function definitions with decorators
+    query := `(function_definition
+        name: (identifier) @func_name
+        parameters: (parameters) @params
+        (#match? @func_name "^[a-z_]")
+    )`
+    
+    q, _ := sitter.NewQuery([]byte(query), python.GetLanguage())
+    qc := sitter.NewQueryCursor()
+    qc.Exec(q, root)
+
+    fmt.Println("Functions found:")
+    for {
+        m, ok := qc.NextMatch()
+        if !ok {
+            break
+        }
+        m = qc.FilterPredicates(m, sourceCode)
+        for _, c := range m.Captures {
+            if q.CaptureNameForId(c.Index) == "func_name" {
+                fmt.Printf("- %s\n", c.Node.Content(sourceCode))
+                
+                // Check for decorators
+                parent := c.Node.Parent()
+                if parent != nil && parent.Type() == "decorated_definition" {
+                    fmt.Println("  Has decorators")
+                }
+            }
+        }
+    }
+}
+```
+
+### Working with TypeScript
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    sitter "github.com/smacker/go-tree-sitter"
+    "github.com/smacker/go-tree-sitter/typescript/typescript"
+)
+
+func parseTypeScriptCode() {
+    sourceCode := []byte(`
+interface User {
+    id: number;
+    name: string;
+    email?: string;
+}
+
+type Status = 'active' | 'inactive' | 'pending';
+
+class UserService {
+    private users: Map<number, User>;
+    
+    constructor() {
+        this.users = new Map();
+    }
+    
+    async addUser(user: User): Promise<void> {
+        this.users.set(user.id, user);
+    }
+    
+    getUser(id: number): User | undefined {
+        return this.users.get(id);
+    }
+    
+    getAllUsers(): User[] {
+        return Array.from(this.users.values());
+    }
+}
+
+// Generic function
+function processArray<T>(items: T[], processor: (item: T) => void): void {
+    items.forEach(processor);
+}
+
+// Type guard
+function isUser(obj: any): obj is User {
+    return 'id' in obj && 'name' in obj;
+}
+`)
+
+    parser := sitter.NewParser()
+    parser.SetLanguage(typescript.GetLanguage())
+
+    tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
+    root := tree.RootNode()
+
+    // Find all type definitions
+    query := `[
+        (interface_declaration name: (type_identifier) @type_name)
+        (type_alias_declaration name: (type_identifier) @type_name)
+        (class_declaration name: (type_identifier) @type_name)
+    ]`
+    
+    q, _ := sitter.NewQuery([]byte(query), typescript.GetLanguage())
+    qc := sitter.NewQueryCursor()
+    qc.Exec(q, root)
+
+    fmt.Println("Types found:")
+    for {
+        m, ok := qc.NextMatch()
+        if !ok {
+            break
+        }
+        for _, c := range m.Captures {
+            fmt.Printf("- %s (%s)\n", 
+                c.Node.Content(sourceCode),
+                c.Node.Parent().Type())
+        }
+    }
+}
+```
+
+## Working with AST Nodes
+
+### Node Properties and Methods
+
+```go
+// Basic node information
+node.Type()          // Get node type (e.g., "function_declaration")
+node.StartByte()     // Starting byte position
+node.EndByte()       // Ending byte position
+node.StartPoint()    // Starting row/column
+node.EndPoint()      // Ending row/column
+node.Range()         // Complete range information
+
+// Node relationships
+node.Parent()        // Get parent node
+node.Child(0)        // Get child by index
+node.NamedChild(0)   // Get named child by index
+node.ChildCount()    // Total number of children
+node.NamedChildCount() // Number of named children
+node.NextSibling()   // Next sibling node
+node.PrevSibling()   // Previous sibling node
+
+// Node properties
+node.IsNamed()       // Check if node is named
+node.IsMissing()     // Check if node is missing (error recovery)
+node.IsExtra()       // Check if node is extra (e.g., comments)
+node.IsError()       // Check if node is an error
+node.HasError()      // Check if subtree contains errors
+node.HasChanges()    // Check if node changed after edit
+
+// Content extraction
+node.Content(sourceCode) // Get the source code for this node
+
+// Field access
+node.ChildByFieldName("name") // Get child by field name
+node.FieldNameForChild(0)     // Get field name for child at index
+```
+
+### Tree Cursor for Efficient Traversal
+
+```go
+func traverseWithCursor(root *sitter.Node) {
+    cursor := sitter.NewTreeCursor(root)
+    defer cursor.Close()
+
+    visitNode := func() {
+        node := cursor.CurrentNode()
+        fieldName := cursor.CurrentFieldName()
+        
+        fmt.Printf("%s%s", 
+            strings.Repeat("  ", int(node.StartPoint().Row)),
+            node.Type())
+        
+        if fieldName != "" {
+            fmt.Printf(" (%s)", fieldName)
+        }
+        fmt.Println()
+    }
+
+    var traverse func() bool
+    traverse = func() bool {
+        visitNode()
+        
+        if cursor.GoToFirstChild() {
+            for {
+                traverse()
+                if !cursor.GoToNextSibling() {
+                    break
+                }
+            }
+            cursor.GoToParent()
+        }
+        return true
+    }
+    
+    traverse()
+}
+```
+
+## Querying and Pattern Matching
+
+### Query Syntax
+
+Tree-sitter uses S-expression syntax for queries:
+
+```scheme
+; Basic node matching
+(identifier)
+
+; Node with specific type
+(function_declaration)
+
+; Nested matching
+(function_declaration
+  name: (identifier))
+
+; Capture nodes with @name
+(function_declaration
+  name: (identifier) @function_name)
+
+; Multiple patterns
+[
+  (function_declaration)
+  (method_definition)
+]
+
+; Wildcards
+(call_expression
+  function: (_) @callable)
+
+; Field names
+(function_declaration
+  name: (identifier) @name
+  parameters: (formal_parameters) @params
+  body: (statement_block) @body)
 ```
 
 ### Predicates
 
-You can filter AST by using [predicate](https://tree-sitter.github.io/tree-sitter/using-parsers#predicates) S-expressions.
+```go
+func demonstratePredicates() {
+    sourceCode := []byte(`
+        const CONSTANT_VALUE = 42;
+        const camelCaseVar = "hello";
+        let snake_case_var = true;
+    `)
 
-Similar to [Rust](https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_rust) or [WebAssembly](https://github.com/tree-sitter/tree-sitter/blob/master/lib/binding_web) bindings we support filtering on a few common predicates:
-- `eq?`, `not-eq?`
-- `match?`, `not-match?`
+    parser := sitter.NewParser()
+    parser.SetLanguage(javascript.GetLanguage())
+    tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
+    root := tree.RootNode()
 
-Usage [example](./_examples/predicates/main.go):
+    // Match only SCREAMING_SNAKE_CASE constants
+    query := `(
+        (variable_declarator
+            name: (identifier) @const_name)
+        (#match? @const_name "^[A-Z_]+$")
+    )`
+
+    q, _ := sitter.NewQuery([]byte(query), javascript.GetLanguage())
+    qc := sitter.NewQueryCursor()
+    qc.Exec(q, root)
+
+    for {
+        m, ok := qc.NextMatch()
+        if !ok {
+            break
+        }
+        // Apply predicate filtering
+        m = qc.FilterPredicates(m, sourceCode)
+        for _, c := range m.Captures {
+            fmt.Printf("Constant: %s\n", c.Node.Content(sourceCode))
+        }
+    }
+}
+```
+
+### Available Predicates
+
+1. **`eq?`** - Test equality
+   ```scheme
+   (#eq? @node "specific_text")
+   (#eq? @node1 @node2)
+   ```
+
+2. **`not-eq?`** - Test inequality
+   ```scheme
+   (#not-eq? @node "text")
+   ```
+
+3. **`match?`** - Regex matching
+   ```scheme
+   (#match? @identifier "^[A-Z][a-zA-Z0-9]*$")
+   ```
+
+4. **`not-match?`** - Negative regex matching
+   ```scheme
+   (#not-match? @string "[0-9]")
+   ```
+
+## Advanced Features
+
+### Incremental Parsing
 
 ```go
-func main() {
-	// Javascript code
-	sourceCode := []byte(`
-		const camelCaseConst = 1;
-		const SCREAMING_SNAKE_CASE_CONST = 2;
-		const lower_snake_case_const = 3;`)
-	// Query with predicates
-	screamingSnakeCasePattern := `(
-		(identifier) @constant
-		(#match? @constant "^[A-Z][A-Z_]+")
-	)`
+func incrementalParsing() {
+    parser := sitter.NewParser()
+    parser.SetLanguage(javascript.GetLanguage())
 
-	// Parse source code
-	lang := javascript.GetLanguage()
-	n, _ := sitter.ParseCtx(context.Background(), sourceCode, lang)
-	// Execute the query
-	q, _ := sitter.NewQuery([]byte(screamingSnakeCasePattern), lang)
-	qc := sitter.NewQueryCursor()
-	qc.Exec(q, n)
-	// Iterate over query results
-	for {
-		m, ok := qc.NextMatch()
-		if !ok {
-			break
-		}
-		// Apply predicates filtering
-		m = qc.FilterPredicates(m, sourceCode)
-		for _, c := range m.Captures {
-			fmt.Println(c.Node.Content(sourceCode))
-		}
-	}
+    // Initial parse
+    oldSource := []byte("let x = 1")
+    tree, _ := parser.ParseCtx(context.Background(), nil, oldSource)
+    
+    // Make an edit: change "1" to "42"
+    newSource := []byte("let x = 42")
+    
+    // Notify the tree about the edit
+    tree.Edit(sitter.EditInput{
+        StartIndex:  8,
+        OldEndIndex: 9,
+        NewEndIndex: 10,
+        StartPoint: sitter.Point{Row: 0, Column: 8},
+        OldEndPoint: sitter.Point{Row: 0, Column: 9},
+        NewEndPoint: sitter.Point{Row: 0, Column: 10},
+    })
+
+    // Re-parse incrementally
+    newTree, _ := parser.ParseCtx(context.Background(), tree, newSource)
+    
+    // Check what changed
+    root := newTree.RootNode()
+    checkChanges(root)
 }
 
-// Output of this program:
-// SCREAMING_SNAKE_CASE_CONST
+func checkChanges(node *sitter.Node) {
+    if node.HasChanges() {
+        fmt.Printf("Node changed: %s\n", node.Type())
+    }
+    for i := 0; i < int(node.ChildCount()); i++ {
+        checkChanges(node.Child(i))
+    }
+}
 ```
 
-## Development
+### Custom Input Reader
 
-### Updating a grammar
+```go
+func customInputReader() {
+    // Simulate reading from a large file or network stream
+    chunks := []string{
+        "function hello() {",
+        "  console.log('Hello');",
+        "}",
+    }
+    
+    parser := sitter.NewParser()
+    parser.SetLanguage(javascript.GetLanguage())
 
-Check if any updates for vendored files are available:
+    input := sitter.Input{
+        Encoding: sitter.InputEncodingUTF8,
+        Read: func(offset uint32, position sitter.Point) []byte {
+            // Concatenate all chunks up to the offset
+            fullText := strings.Join(chunks, "\n")
+            if int(offset) >= len(fullText) {
+                return nil
+            }
+            
+            // Return remaining text from offset
+            return []byte(fullText[offset:])
+        },
+    }
 
+    tree, _ := parser.ParseInputCtx(context.Background(), nil, input)
+    fmt.Println(tree.RootNode().String())
+}
 ```
-go run _automation/main.go check-updates
+
+### Iterator Pattern
+
+```go
+func iterateNodes() {
+    sourceCode := []byte(`
+        function outer() {
+            function inner() {
+                return 42;
+            }
+            return inner();
+        }
+    `)
+
+    root, _ := sitter.ParseCtx(context.Background(), sourceCode, javascript.GetLanguage())
+
+    // Depth-first iteration
+    fmt.Println("DFS Traversal:")
+    dfsIter := sitter.NewIterator(root, sitter.DFSMode)
+    dfsIter.ForEach(func(node *sitter.Node) error {
+        if node.IsNamed() {
+            fmt.Printf("- %s\n", node.Type())
+        }
+        return nil
+    })
+
+    // Breadth-first iteration
+    fmt.Println("\nBFS Traversal:")
+    bfsIter := sitter.NewIterator(root, sitter.BFSMode)
+    for {
+        node, err := bfsIter.Next()
+        if err != nil {
+            break
+        }
+        if node.IsNamed() {
+            fmt.Printf("- %s (depth: %d)\n", 
+                node.Type(), 
+                getDepth(node))
+        }
+    }
+}
+
+func getDepth(node *sitter.Node) int {
+    depth := 0
+    current := node
+    for current.Parent() != nil {
+        depth++
+        current = current.Parent()
+    }
+    return depth
+}
 ```
 
-Update vendor files:
+## Practical Examples
 
-- open `_automation/grammars.json`
-- modify `reference` (for tagged grammars) or `revision` (for grammars from a branch)
-- run `go run _automation/main.go update <grammar-name>`
+### 1. Extract All Imports
 
-It is also possible to update all grammars in one go using
-
+```go
+func extractImports(sourceCode []byte, lang *sitter.Language) []string {
+    parser := sitter.NewParser()
+    parser.SetLanguage(lang)
+    
+    tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
+    root := tree.RootNode()
+    
+    var query string
+    switch lang {
+    case golang.GetLanguage():
+        query = `(import_declaration (import_spec path: (interpreted_string_literal) @import))`
+    case python.GetLanguage():
+        query = `[
+            (import_statement (dotted_name) @import)
+            (import_from_statement module_name: (dotted_name) @import)
+        ]`
+    case javascript.GetLanguage(), typescript.GetLanguage():
+        query = `[
+            (import_statement source: (string) @import)
+            (import_declaration source: (string) @import)
+        ]`
+    case java.GetLanguage():
+        query = `(import_declaration (scoped_identifier) @import)`
+    }
+    
+    q, _ := sitter.NewQuery([]byte(query), lang)
+    qc := sitter.NewQueryCursor()
+    qc.Exec(q, root)
+    
+    var imports []string
+    for {
+        m, ok := qc.NextMatch()
+        if !ok {
+            break
+        }
+        for _, c := range m.Captures {
+            imports = append(imports, c.Node.Content(sourceCode))
+        }
+    }
+    
+    return imports
+}
 ```
-go run _automation/main.go update-all
+
+### 2. Find All Function Calls
+
+```go
+func findFunctionCalls(sourceCode []byte, lang *sitter.Language) map[string][]string {
+    parser := sitter.NewParser()
+    parser.SetLanguage(lang)
+    
+    tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
+    root := tree.RootNode()
+    
+    var query string
+    switch lang {
+    case golang.GetLanguage():
+        query = `(call_expression function: (identifier) @func_name)`
+    case python.GetLanguage():
+        query = `(call function: [(identifier) @func_name (attribute) @func_name])`
+    case javascript.GetLanguage(), typescript.GetLanguage():
+        query = `(call_expression function: [(identifier) @func_name (member_expression) @func_name])`
+    case java.GetLanguage():
+        query = `(method_invocation name: (identifier) @func_name)`
+    }
+    
+    q, _ := sitter.NewQuery([]byte(query), lang)
+    qc := sitter.NewQueryCursor()
+    qc.Exec(q, root)
+    
+    calls := make(map[string][]string)
+    for {
+        m, ok := qc.NextMatch()
+        if !ok {
+            break
+        }
+        for _, c := range m.Captures {
+            funcName := c.Node.Content(sourceCode)
+            line := c.Node.StartPoint().Row + 1
+            calls[funcName] = append(calls[funcName], 
+                fmt.Sprintf("line %d", line))
+        }
+    }
+    
+    return calls
+}
 ```
 
-=== _examples/main.go ===
+### 3. Code Complexity Analysis
 
-package main
-
-import (
-"fmt"
-
-	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/smacker/go-tree-sitter/javascript"
-)
-
-func main() {
-input := []byte("function hello() { console.log('hello') }; function goodbye(){}")
-
-	parser := sitter.NewParser()
-	parser.SetLanguage(javascript.GetLanguage())
-
-	tree := parser.Parse(nil, input)
-
-	n := tree.RootNode()
-
-	fmt.Println("AST:", n)
-	fmt.Println("Root type:", n.Type())
-	fmt.Println("Root children:", n.ChildCount())
-
-	fmt.Println("\nFunctions in input:")
-	q, _ := sitter.NewQuery([]byte("(function_declaration) @func"), javascript.GetLanguage())
-	qc := sitter.NewQueryCursor()
-	qc.Exec(q, n)
-
-	var funcs []*sitter.Node
-	for {
-		m, ok := qc.NextMatch()
-		if !ok {
-			break
-		}
-
-		for _, c := range m.Captures {
-			funcs = append(funcs, c.Node)
-			fmt.Println("-", funcName(input, c.Node))
-		}
-	}
-
-	fmt.Println("\nEdit input")
-	input = []byte("function hello() { console.log('hello') }; function goodbye(){ console.log('goodbye') }")
-	// reuse tree
-	tree.Edit(sitter.EditInput{
-		StartIndex:  62,
-		OldEndIndex: 63,
-		NewEndIndex: 87,
-		StartPoint: sitter.Point{
-			Row:    0,
-			Column: 62,
-		},
-		OldEndPoint: sitter.Point{
-			Row:    0,
-			Column: 63,
-		},
-		NewEndPoint: sitter.Point{
-			Row:    0,
-			Column: 87,
-		},
-	})
-
-	for _, f := range funcs {
-		var textChange string
-		if f.HasChanges() {
-			textChange = "has change"
-		} else {
-			textChange = "no changes"
-		}
-		fmt.Println("-", funcName(input, f), ">", textChange)
-	}
-
-	newTree := parser.Parse(tree, input)
-	n = newTree.RootNode()
-	fmt.Println("\nNew AST:", n)
+```go
+func analyzeComplexity(sourceCode []byte, lang *sitter.Language) {
+    parser := sitter.NewParser()
+    parser.SetLanguage(lang)
+    
+    tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
+    root := tree.RootNode()
+    
+    // Count different complexity indicators
+    var functionQuery, loopQuery, conditionalQuery string
+    
+    switch lang {
+    case golang.GetLanguage():
+        functionQuery = `(function_declaration)`
+        loopQuery = `[(for_statement) (range_statement)]`
+        conditionalQuery = `[(if_statement) (switch_statement)]`
+    case python.GetLanguage():
+        functionQuery = `(function_definition)`
+        loopQuery = `[(for_statement) (while_statement)]`
+        conditionalQuery = `[(if_statement) (match_statement)]`
+    case javascript.GetLanguage(), typescript.GetLanguage():
+        functionQuery = `[(function_declaration) (arrow_function) (function)]`
+        loopQuery = `[(for_statement) (while_statement) (do_statement)]`
+        conditionalQuery = `[(if_statement) (switch_statement) (ternary_expression)]`
+    }
+    
+    fmt.Println("Code Complexity Metrics:")
+    fmt.Printf("Functions: %d\n", countMatches(root, functionQuery, lang))
+    fmt.Printf("Loops: %d\n", countMatches(root, loopQuery, lang))
+    fmt.Printf("Conditionals: %d\n", countMatches(root, conditionalQuery, lang))
 }
 
-func funcName(content []byte, n *sitter.Node) string {
-if n == nil {
-return ""
+func countMatches(root *sitter.Node, query string, lang *sitter.Language) int {
+    q, _ := sitter.NewQuery([]byte(query), lang)
+    qc := sitter.NewQueryCursor()
+    qc.Exec(q, root)
+    
+    count := 0
+    for {
+        _, ok := qc.NextMatch()
+        if !ok {
+            break
+        }
+        count++
+    }
+    return count
+}
+```
+
+### 4. Documentation Extractor
+
+```go
+func extractDocumentation(sourceCode []byte, lang *sitter.Language) {
+    parser := sitter.NewParser()
+    parser.SetLanguage(lang)
+    
+    tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
+    root := tree.RootNode()
+    
+    var query string
+    switch lang {
+    case golang.GetLanguage():
+        // Go uses comments above declarations
+        query = `(
+            (comment)+ @doc
+            .
+            (function_declaration name: (identifier) @name)
+        )`
+    case python.GetLanguage():
+        // Python uses docstrings
+        query = `(
+            function_definition
+            name: (identifier) @name
+            body: (block . (expression_statement (string) @doc))
+        )`
+    case java.GetLanguage():
+        // Java uses Javadoc comments
+        query = `(
+            (block_comment) @doc
+            .
+            (method_declaration name: (identifier) @name)
+            (#match? @doc "^/\\*\\*")
+        )`
+    }
+    
+    if query == "" {
+        return
+    }
+    
+    q, _ := sitter.NewQuery([]byte(query), lang)
+    qc := sitter.NewQueryCursor()
+    qc.Exec(q, root)
+    
+    fmt.Println("Documented Functions:")
+    for {
+        m, ok := qc.NextMatch()
+        if !ok {
+            break
+        }
+        m = qc.FilterPredicates(m, sourceCode)
+        
+        var name, doc string
+        for _, c := range m.Captures {
+            captureName := q.CaptureNameForId(c.Index)
+            content := c.Node.Content(sourceCode)
+            
+            switch captureName {
+            case "name":
+                name = content
+            case "doc":
+                doc = content
+            }
+        }
+        
+        if name != "" && doc != "" {
+            fmt.Printf("\nFunction: %s\n", name)
+            fmt.Printf("Documentation: %s\n", doc)
+        }
+    }
+}
+```
+
+## Best Practices
+
+### 1. Parser Reuse
+```go
+// Good: Reuse parser instances
+var globalParser = sitter.NewParser()
+
+func parseMultipleFiles(files []string, lang *sitter.Language) {
+    globalParser.SetLanguage(lang)
+    
+    for _, file := range files {
+        content, _ := os.ReadFile(file)
+        tree, _ := globalParser.ParseCtx(context.Background(), nil, content)
+        // Process tree...
+    }
 }
 
-	if n.Type() != "function_declaration" {
-		return ""
-	}
+// Bad: Creating new parser for each file
+func badExample(files []string, lang *sitter.Language) {
+    for _, file := range files {
+        parser := sitter.NewParser() // Wasteful
+        parser.SetLanguage(lang)
+        // ...
+    }
+}
+```
 
-	return n.ChildByFieldName("name").Content(content)
+### 2. Context Usage
+```go
+// Always use context for cancellation support
+func parseWithTimeout(sourceCode []byte, lang *sitter.Language) (*sitter.Tree, error) {
+    parser := sitter.NewParser()
+    parser.SetLanguage(lang)
+    
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+    
+    return parser.ParseCtx(ctx, nil, sourceCode)
+}
+```
+
+### 3. Error Handling
+```go
+func robustParsing(sourceCode []byte, lang *sitter.Language) (*sitter.Node, error) {
+    parser := sitter.NewParser()
+    
+    // Check language is set
+    if lang == nil {
+        return nil, fmt.Errorf("language not specified")
+    }
+    parser.SetLanguage(lang)
+    
+    // Set operation limit for safety
+    parser.SetOperationLimit(1000000) // microseconds
+    
+    tree, err := parser.ParseCtx(context.Background(), nil, sourceCode)
+    if err != nil {
+        switch err {
+        case sitter.ErrOperationLimit:
+            return nil, fmt.Errorf("parsing took too long")
+        case sitter.ErrNoLanguage:
+            return nil, fmt.Errorf("no language set")
+        default:
+            return nil, fmt.Errorf("parsing failed: %w", err)
+        }
+    }
+    
+    root := tree.RootNode()
+    if root.HasError() {
+        // Find and report syntax errors
+        var errors []string
+        findErrors(root, sourceCode, &errors)
+        return root, fmt.Errorf("syntax errors found: %v", errors)
+    }
+    
+    return root, nil
 }
 
-=== _examples/predicates/main.go ===
-
-package main
-
-import (
-"context"
-"fmt"
-
-	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/smacker/go-tree-sitter/javascript"
-)
-
-func main() {
-// Javascript code
-sourceCode := []byte(`
-	const camelCaseConst = 1;
-	const SCREAMING_SNAKE_CASE_CONST = 2;
-	const lower_snake_case_const = 3;`)
-// Query with predicates
-screamingSnakeCasePattern := `(
-	(identifier) @constant
-	(#match? @constant "^[A-Z][A-Z_]+")
-)`
-
-	// Parse source code
-	lang := javascript.GetLanguage()
-	n, _ := sitter.ParseCtx(context.Background(), sourceCode, lang)
-	// Execute the query
-	q, _ := sitter.NewQuery([]byte(screamingSnakeCasePattern), lang)
-	qc := sitter.NewQueryCursor()
-	qc.Exec(q, n)
-	// Iterate over query results
-	for {
-		m, ok := qc.NextMatch()
-		if !ok {
-			break
-		}
-		// Apply predicates filtering
-		m = qc.FilterPredicates(m, sourceCode)
-		for _, c := range m.Captures {
-			fmt.Println(c.Node.Content(sourceCode))
-		}
-	}
+func findErrors(node *sitter.Node, source []byte, errors *[]string) {
+    if node.IsError() || node.IsMissing() {
+        *errors = append(*errors, fmt.Sprintf(
+            "Error at %d:%d: %s",
+            node.StartPoint().Row+1,
+            node.StartPoint().Column+1,
+            node.String(),
+        ))
+    }
+    
+    for i := 0; i < int(node.ChildCount()); i++ {
+        findErrors(node.Child(i), source, errors)
+    }
 }
+```
 
-=== godoc ===
+### 4. Memory Management
+```go
+// Tree-sitter objects are automatically garbage collected
+// but you can explicitly close them for immediate cleanup
 
-README ¶
-go tree-sitter
-Build Status GoDoc
-
-Golang bindings for tree-sitter
-
-Usage
-Create a parser with a grammar:
-
-import (
-"context"
-"fmt"
-
-	sitter "github.com/smacker/go-tree-sitter"
-	"github.com/smacker/go-tree-sitter/javascript"
-)
-
-parser := sitter.NewParser()
-parser.SetLanguage(javascript.GetLanguage())
-Parse some code:
-
-sourceCode := []byte("let a = 1")
-tree, _ := parser.ParseCtx(context.Background(), nil, sourceCode)
-Inspect the syntax tree:
-
-n := tree.RootNode()
-
-fmt.Println(n) // (program (lexical_declaration (variable_declarator (identifier) (number))))
-
-child := n.NamedChild(0)
-fmt.Println(child.Type()) // lexical_declaration
-fmt.Println(child.StartByte()) // 0
-fmt.Println(child.EndByte()) // 9
-Custom grammars
-This repository provides grammars for many common languages out of the box.
-
-But if you need support for any other language you can keep it inside your own project or publish it as a separate repository to share with the community.
-
-See explanation on how to create a grammar for go-tree-sitter here.
-
-Known external grammars:
-
-Salesforce grammars - including Apex, SOQL, and SOSL languages.
-Ruby - Deprecated, grammar is provided by main repo instead
-Go Template - Used for helm
-Editing
-If your source code changes, you can update the syntax tree. This will take less time than the first parse.
-
-// change 1 -> true
-newText := []byte("let a = true")
-tree.Edit(sitter.EditInput{
-StartIndex:  8,
-OldEndIndex: 9,
-NewEndIndex: 12,
-StartPoint: sitter.Point{
-Row:    0,
-Column: 8,
-},
-OldEndPoint: sitter.Point{
-Row:    0,
-Column: 9,
-},
-NewEndPoint: sitter.Point{
-Row:    0,
-Column: 12,
-},
-})
-
-// check that it changed tree
-assert.True(n.HasChanges())
-assert.True(n.Child(0).HasChanges())
-assert.False(n.Child(0).Child(0).HasChanges()) // left side of the tree didn't change
-assert.True(n.Child(0).Child(1).HasChanges())
-
-// generate new tree
-newTree := parser.Parse(tree, newText)
-Predicates
-You can filter AST by using predicate S-expressions.
-
-Similar to Rust or WebAssembly bindings we support filtering on a few common predicates:
-
-eq?, not-eq?
-match?, not-match?
-Usage example:
-
-func main() {
-// Javascript code
-sourceCode := []byte(`
-		const camelCaseConst = 1;
-		const SCREAMING_SNAKE_CASE_CONST = 2;
-		const lower_snake_case_const = 3;`)
-// Query with predicates
-screamingSnakeCasePattern := `(
-		(identifier) @constant
-		(#match? @constant "^[A-Z][A-Z_]+")
-	)`
-
-	// Parse source code
-	lang := javascript.GetLanguage()
-	n, _ := sitter.ParseCtx(context.Background(), sourceCode, lang)
-	// Execute the query
-	q, _ := sitter.NewQuery([]byte(screamingSnakeCasePattern), lang)
-	qc := sitter.NewQueryCursor()
-	qc.Exec(q, n)
-	// Iterate over query results
-	for {
-		m, ok := qc.NextMatch()
-		if !ok {
-			break
-		}
-		// Apply predicates filtering
-		m = qc.FilterPredicates(m, sourceCode)
-		for _, c := range m.Captures {
-			fmt.Println(c.Node.Content(sourceCode))
-		}
-	}
+func processLargeFile(filename string, lang *sitter.Language) error {
+    parser := sitter.NewParser()
+    defer parser.Close() // Optional but good practice
+    
+    parser.SetLanguage(lang)
+    
+    content, err := os.ReadFile(filename)
+    if err != nil {
+        return err
+    }
+    
+    tree, err := parser.ParseCtx(context.Background(), nil, content)
+    if err != nil {
+        return err
+    }
+    defer tree.Close() // Optional but good practice
+    
+    // Process tree...
+    
+    return nil
 }
+```
 
-// Output of this program:
-// SCREAMING_SNAKE_CASE_CONST
-Development
-Updating a grammar
-Check if any updates for vendored files are available:
+### 5. Query Optimization
+```go
+// Cache compiled queries for reuse
+var queryCache = make(map[string]*sitter.Query)
+var queryCacheMu sync.RWMutex
 
-go run _automation/main.go check-updates
-Update vendor files:
-
-open _automation/grammars.json
-modify reference (for tagged grammars) or revision (for grammars from a branch)
-run go run _automation/main.go update <grammar-name>
-It is also possible to update all grammars in one go using
-
-go run _automation/main.go update-all
-Collapse ▴
-Documentation ¶
-Overview ¶
-Code generated by test_grammar_generate.sh; DO NOT EDIT.
-
-Index ¶
-Constants
-Variables
-func QueryErrorTypeToString(errorType QueryErrorType) string
-type BaseTree
-func (t *BaseTree) Close()
-type EditInput
-type Input
-type InputEncoding
-type IterMode
-type Iterator
-func NewIterator(n *Node, mode IterMode) *Iterator
-func NewNamedIterator(n *Node, mode IterMode) *Iterator
-func (iter *Iterator) ForEach(fn func(*Node) error) error
-func (iter *Iterator) Next() (*Node, error)
-type Language
-func NewLanguage(ptr unsafe.Pointer) *Language
-func (l *Language) FieldName(idx int) string
-func (l *Language) SymbolCount() uint32
-func (l *Language) SymbolName(s Symbol) string
-func (l *Language) SymbolType(s Symbol) SymbolType
-type Node
-func Parse(content []byte, lang *Language) *Nodedeprecated
-func ParseCtx(ctx context.Context, content []byte, lang *Language) (*Node, error)
-func (n Node) Child(idx int) *Node
-func (n Node) ChildByFieldName(name string) *Node
-func (n Node) ChildCount() uint32
-func (n Node) Content(input []byte) string
-func (n Node) Edit(i EditInput)
-func (n Node) EndByte() uint32
-func (n Node) EndPoint() Point
-func (n Node) Equal(other *Node) bool
-func (n Node) FieldNameForChild(idx int) string
-func (n Node) HasChanges() bool
-func (n Node) HasError() bool
-func (n Node) ID() uintptr
-func (n Node) IsError() bool
-func (n Node) IsExtra() bool
-func (n Node) IsMissing() bool
-func (n Node) IsNamed() bool
-func (n Node) IsNull() bool
-func (n Node) NamedChild(idx int) *Node
-func (n Node) NamedChildCount() uint32
-func (n Node) NamedDescendantForPointRange(start Point, end Point) *Node
-func (n Node) NextNamedSibling() *Node
-func (n Node) NextSibling() *Node
-func (n Node) Parent() *Node
-func (n Node) PrevNamedSibling() *Node
-func (n Node) PrevSibling() *Node
-func (n Node) Range() Range
-func (n Node) StartByte() uint32
-func (n Node) StartPoint() Point
-func (n Node) String() string
-func (n Node) Symbol() Symbol
-func (n Node) Type() string
-type Parser
-func NewParser() *Parser
-func (p *Parser) Close()
-func (p *Parser) Debug()
-func (p *Parser) OperationLimit() int
-func (p *Parser) Parse(oldTree *Tree, content []byte) *Treedeprecated
-func (p *Parser) ParseCtx(ctx context.Context, oldTree *Tree, content []byte) (*Tree, error)
-func (p *Parser) ParseInput(oldTree *Tree, input Input) *Tree
-func (p *Parser) ParseInputCtx(ctx context.Context, oldTree *Tree, input Input) (*Tree, error)
-func (p *Parser) Reset()
-func (p *Parser) SetIncludedRanges(ranges []Range)
-func (p *Parser) SetLanguage(lang *Language)
-func (p *Parser) SetOperationLimit(limit int)
-type Point
-type Quantifier
-type Query
-func NewQuery(pattern []byte, lang *Language) (*Query, error)
-func (q *Query) CaptureCount() uint32
-func (q *Query) CaptureNameForId(id uint32) string
-func (q *Query) CaptureQuantifierForId(id uint32, captureId uint32) Quantifier
-func (q *Query) Close()
-func (q *Query) PatternCount() uint32
-func (q *Query) PredicatesForPattern(patternIndex uint32) [][]QueryPredicateStep
-func (q *Query) StringCount() uint32
-func (q *Query) StringValueForId(id uint32) string
-type QueryCapture
-type QueryCursor
-func NewQueryCursor() *QueryCursor
-func (qc *QueryCursor) Close()
-func (qc *QueryCursor) Exec(q *Query, n *Node)
-func (qc *QueryCursor) FilterPredicates(m *QueryMatch, input []byte) *QueryMatch
-func (qc *QueryCursor) NextCapture() (*QueryMatch, uint32, bool)
-func (qc *QueryCursor) NextMatch() (*QueryMatch, bool)
-func (qc *QueryCursor) SetPointRange(startPoint Point, endPoint Point)
-type QueryError
-func (qe *QueryError) Error() string
-type QueryErrorType
-type QueryMatch
-type QueryPredicateStep
-type QueryPredicateStepType
-type Range
-type ReadFunc
-type Symbol
-type SymbolType
-func (t SymbolType) String() string
-type Tree
-func (t *Tree) Copy() *Tree
-func (t *Tree) Edit(i EditInput)
-func (t *Tree) RootNode() *Node
-type TreeCursor
-func NewTreeCursor(n *Node) *TreeCursor
-func (c *TreeCursor) Close()
-func (c *TreeCursor) CurrentFieldName() string
-func (c *TreeCursor) CurrentNode() *Node
-func (c *TreeCursor) GoToFirstChild() bool
-func (c *TreeCursor) GoToFirstChildForByte(b uint32) int64
-func (c *TreeCursor) GoToNextSibling() bool
-func (c *TreeCursor) GoToParent() bool
-func (c *TreeCursor) Reset(n *Node)
-Constants ¶
-View Source
-const (
-QuantifierZero = iota
-QuantifierZeroOrOne
-QuantifierZeroOrMore
-QuantifierOne
-QuantifierOneOrMore
-)
-Variables ¶
-View Source
-var (
-ErrOperationLimit = errors.New("operation limit was hit")
-ErrNoLanguage     = errors.New("cannot parse without language")
-)
-Functions ¶
-func QueryErrorTypeToString ¶
-func QueryErrorTypeToString(errorType QueryErrorType) string
-Types ¶
-type BaseTree ¶
-type BaseTree struct {
-// contains filtered or unexported fields
+func getCachedQuery(pattern string, lang *sitter.Language) (*sitter.Query, error) {
+    key := fmt.Sprintf("%s:%p", pattern, lang)
+    
+    queryCacheMu.RLock()
+    if q, ok := queryCache[key]; ok {
+        queryCacheMu.RUnlock()
+        return q, nil
+    }
+    queryCacheMu.RUnlock()
+    
+    queryCacheMu.Lock()
+    defer queryCacheMu.Unlock()
+    
+    // Double-check after acquiring write lock
+    if q, ok := queryCache[key]; ok {
+        return q, nil
+    }
+    
+    q, err := sitter.NewQuery([]byte(pattern), lang)
+    if err != nil {
+        return nil, err
+    }
+    
+    queryCache[key] = q
+    return q, nil
 }
-we use cache for nodes on normal tree object it prevent run of SetFinalizer as it introduces cycle we can workaround it using separate object for details see: https://github.com/golang/go/issues/7358#issuecomment-66091558
+```
 
-func (*BaseTree) Close ¶
-func (t *BaseTree) Close()
-Close should be called to ensure that all the memory used by the tree is freed.
+## Conclusion
 
-As the constructor in go-tree-sitter would set this func call through runtime.SetFinalizer, parser.Close() will be called by Go's garbage collector and users would not have to call this manually.
+go-tree-sitter provides a powerful and efficient way to parse and analyze source code across multiple programming languages. Its key strengths include:
 
-type EditInput ¶
-type EditInput struct {
-StartIndex  uint32
-OldEndIndex uint32
-NewEndIndex uint32
-StartPoint  Point
-OldEndPoint Point
-NewEndPoint Point
-}
-type Input ¶
-type Input struct {
-Read     ReadFunc
-Encoding InputEncoding
-}
-Input defines parameters for parse method
+- **Performance**: Fast parsing with incremental updates
+- **Accuracy**: Precise syntax trees that handle edge cases
+- **Flexibility**: Powerful query system for pattern matching
+- **Language Support**: Consistent API across different languages
+- **Error Recovery**: Robust handling of syntax errors
 
-type InputEncoding ¶
-type InputEncoding int
-InputEncoding is a encoding of the text to parse
+Whether you're building development tools, code analyzers, or syntax highlighters, go-tree-sitter offers the foundation for sophisticated source code processing in Go.
 
-const (
-InputEncodingUTF8 InputEncoding = iota
-InputEncodingUTF16
-)
-type IterMode ¶
-type IterMode int
-const (
-DFSMode IterMode = iota
-BFSMode
-)
-type Iterator ¶
-type Iterator struct {
-// contains filtered or unexported fields
-}
-Iterator for a tree of nodes
+### Resources
 
-func NewIterator ¶
-func NewIterator(n *Node, mode IterMode) *Iterator
-NewIterator takes a node and mode (DFS/BFS) and returns iterator over children of the node
-
-func NewNamedIterator ¶
-func NewNamedIterator(n *Node, mode IterMode) *Iterator
-NewNamedIterator takes a node and mode (DFS/BFS) and returns iterator over named children of the node
-
-func (*Iterator) ForEach ¶
-func (iter *Iterator) ForEach(fn func(*Node) error) error
-func (*Iterator) Next ¶
-func (iter *Iterator) Next() (*Node, error)
-type Language ¶
-type Language struct {
-// contains filtered or unexported fields
-}
-Language defines how to parse a particular programming language
-
-func NewLanguage ¶
-func NewLanguage(ptr unsafe.Pointer) *Language
-NewLanguage creates new Language from c pointer
-
-func (*Language) FieldName ¶
-func (l *Language) FieldName(idx int) string
-func (*Language) SymbolCount ¶
-func (l *Language) SymbolCount() uint32
-SymbolCount returns the number of distinct field names in the language.
-
-func (*Language) SymbolName ¶
-func (l *Language) SymbolName(s Symbol) string
-SymbolName returns a node type string for the given Symbol.
-
-func (*Language) SymbolType ¶
-func (l *Language) SymbolType(s Symbol) SymbolType
-SymbolType returns named, anonymous, or a hidden type for a Symbol.
-
-type Node ¶
-type Node struct {
-// contains filtered or unexported fields
-}
-Node represents a single node in the syntax tree It tracks its start and end positions in the source code, as well as its relation to other nodes like its parent, siblings and children.
-
-func
-Parse
-deprecated
-func ParseCtx ¶
-func ParseCtx(ctx context.Context, content []byte, lang *Language) (*Node, error)
-ParseCtx is a shortcut for parsing bytes of source code, returns root node
-
-func (Node) Child ¶
-func (n Node) Child(idx int) *Node
-Child returns the node's child at the given index, where zero represents the first child.
-
-func (Node) ChildByFieldName ¶
-func (n Node) ChildByFieldName(name string) *Node
-ChildByFieldName returns the node's child with the given field name.
-
-func (Node) ChildCount ¶
-func (n Node) ChildCount() uint32
-ChildCount returns the node's number of children.
-
-func (Node) Content ¶
-func (n Node) Content(input []byte) string
-Content returns node's source code from input as a string
-
-func (Node) Edit ¶
-func (n Node) Edit(i EditInput)
-Edit the node to keep it in-sync with source code that has been edited.
-
-func (Node) EndByte ¶
-func (n Node) EndByte() uint32
-EndByte returns the node's end byte.
-
-func (Node) EndPoint ¶
-func (n Node) EndPoint() Point
-EndPoint returns the node's end position in terms of rows and columns.
-
-func (Node) Equal ¶
-func (n Node) Equal(other *Node) bool
-Equal checks if two nodes are identical.
-
-func (Node) FieldNameForChild ¶
-func (n Node) FieldNameForChild(idx int) string
-FieldNameForChild returns the field name of the child at the given index, or "" if not named.
-
-func (Node) HasChanges ¶
-func (n Node) HasChanges() bool
-HasChanges checks if a syntax node has been edited.
-
-func (Node) HasError ¶
-func (n Node) HasError() bool
-HasError check if the node is a syntax error or contains any syntax errors.
-
-func (Node) ID ¶
-func (n Node) ID() uintptr
-func (Node) IsError ¶
-func (n Node) IsError() bool
-IsError checks if the node is a syntax error. Syntax errors represent parts of the code that could not be incorporated into a valid syntax tree.
-
-func (Node) IsExtra ¶
-func (n Node) IsExtra() bool
-IsExtra checks if the node is *extra*. Extra nodes represent things like comments, which are not required the grammar, but can appear anywhere.
-
-func (Node) IsMissing ¶
-func (n Node) IsMissing() bool
-IsMissing checks if the node is *missing*. Missing nodes are inserted by the parser in order to recover from certain kinds of syntax errors.
-
-func (Node) IsNamed ¶
-func (n Node) IsNamed() bool
-IsNamed checks if the node is *named*. Named nodes correspond to named rules in the grammar, whereas *anonymous* nodes correspond to string literals in the grammar.
-
-func (Node) IsNull ¶
-func (n Node) IsNull() bool
-IsNull checks if the node is null.
-
-func (Node) NamedChild ¶
-func (n Node) NamedChild(idx int) *Node
-NamedChild returns the node's *named* child at the given index.
-
-func (Node) NamedChildCount ¶
-func (n Node) NamedChildCount() uint32
-NamedChildCount returns the node's number of *named* children.
-
-func (Node) NamedDescendantForPointRange ¶
-func (n Node) NamedDescendantForPointRange(start Point, end Point) *Node
-func (Node) NextNamedSibling ¶
-func (n Node) NextNamedSibling() *Node
-NextNamedSibling returns the node's next *named* sibling.
-
-func (Node) NextSibling ¶
-func (n Node) NextSibling() *Node
-NextSibling returns the node's next sibling.
-
-func (Node) Parent ¶
-func (n Node) Parent() *Node
-Parent returns the node's immediate parent.
-
-func (Node) PrevNamedSibling ¶
-func (n Node) PrevNamedSibling() *Node
-PrevNamedSibling returns the node's previous *named* sibling.
-
-func (Node) PrevSibling ¶
-func (n Node) PrevSibling() *Node
-PrevSibling returns the node's previous sibling.
-
-func (Node) Range ¶
-func (n Node) Range() Range
-func (Node) StartByte ¶
-func (n Node) StartByte() uint32
-StartByte returns the node's start byte.
-
-func (Node) StartPoint ¶
-func (n Node) StartPoint() Point
-StartPoint returns the node's start position in terms of rows and columns.
-
-func (Node) String ¶
-func (n Node) String() string
-String returns an S-expression representing the node as a string.
-
-func (Node) Symbol ¶
-func (n Node) Symbol() Symbol
-Symbol returns the node's type as a Symbol.
-
-func (Node) Type ¶
-func (n Node) Type() string
-Type returns the node's type as a string.
-
-type Parser ¶
-type Parser struct {
-// contains filtered or unexported fields
-}
-Parser produces concrete syntax tree based on source code using Language
-
-func NewParser ¶
-func NewParser() *Parser
-NewParser creates new Parser
-
-func (*Parser) Close ¶
-func (p *Parser) Close()
-Close should be called to ensure that all the memory used by the parse is freed.
-
-As the constructor in go-tree-sitter would set this func call through runtime.SetFinalizer, parser.Close() will be called by Go's garbage collector and users would not have to call this manually.
-
-func (*Parser) Debug ¶
-func (p *Parser) Debug()
-Debug enables debug output to stderr
-
-func (*Parser) OperationLimit ¶
-func (p *Parser) OperationLimit() int
-OperationLimit returns the duration in microseconds that parsing is allowed to take
-
-func (*Parser)
-Parse
-deprecated
-func (*Parser) ParseCtx ¶
-func (p *Parser) ParseCtx(ctx context.Context, oldTree *Tree, content []byte) (*Tree, error)
-ParseCtx produces new Tree from content using old tree
-
-func (*Parser) ParseInput ¶
-func (p *Parser) ParseInput(oldTree *Tree, input Input) *Tree
-ParseInput produces new Tree by reading from a callback defined in input it is useful if your data is stored in specialized data structure as it will avoid copying the data into []bytes and faster access to edited part of the data
-
-func (*Parser) ParseInputCtx ¶
-func (p *Parser) ParseInputCtx(ctx context.Context, oldTree *Tree, input Input) (*Tree, error)
-ParseInputCtx produces new Tree by reading from a callback defined in input it is useful if your data is stored in specialized data structure as it will avoid copying the data into []bytes and faster access to edited part of the data
-
-func (*Parser) Reset ¶
-func (p *Parser) Reset()
-Reset causes the parser to parse from scratch on the next call to parse, instead of resuming so that it sees the changes to the beginning of the source code.
-
-func (*Parser) SetIncludedRanges ¶
-func (p *Parser) SetIncludedRanges(ranges []Range)
-SetIncludedRanges sets text ranges of a file
-
-func (*Parser) SetLanguage ¶
-func (p *Parser) SetLanguage(lang *Language)
-SetLanguage assignes Language to a parser
-
-func (*Parser) SetOperationLimit ¶
-func (p *Parser) SetOperationLimit(limit int)
-SetOperationLimit limits the maximum duration in microseconds that parsing should be allowed to take before halting
-
-type Point ¶
-type Point struct {
-Row    uint32
-Column uint32
-}
-type Quantifier ¶
-type Quantifier int
-type Query ¶
-type Query struct {
-// contains filtered or unexported fields
-}
-Query API
-
-func NewQuery ¶
-func NewQuery(pattern []byte, lang *Language) (*Query, error)
-NewQuery creates a query by specifying a string containing one or more patterns. In case of error returns QueryError.
-
-func (*Query) CaptureCount ¶
-func (q *Query) CaptureCount() uint32
-func (*Query) CaptureNameForId ¶
-func (q *Query) CaptureNameForId(id uint32) string
-func (*Query) CaptureQuantifierForId ¶
-func (q *Query) CaptureQuantifierForId(id uint32, captureId uint32) Quantifier
-func (*Query) Close ¶
-func (q *Query) Close()
-Close should be called to ensure that all the memory used by the query is freed.
-
-As the constructor in go-tree-sitter would set this func call through runtime.SetFinalizer, parser.Close() will be called by Go's garbage collector and users would not have to call this manually.
-
-func (*Query) PatternCount ¶
-func (q *Query) PatternCount() uint32
-func (*Query) PredicatesForPattern ¶
-func (q *Query) PredicatesForPattern(patternIndex uint32) [][]QueryPredicateStep
-func (*Query) StringCount ¶
-func (q *Query) StringCount() uint32
-func (*Query) StringValueForId ¶
-func (q *Query) StringValueForId(id uint32) string
-type QueryCapture ¶
-type QueryCapture struct {
-Index uint32
-Node  *Node
-}
-QueryCapture is a captured node by a query with an index
-
-type QueryCursor ¶
-type QueryCursor struct {
-// contains filtered or unexported fields
-}
-QueryCursor carries the state needed for processing the queries.
-
-func NewQueryCursor ¶
-func NewQueryCursor() *QueryCursor
-NewQueryCursor creates a query cursor.
-
-func (*QueryCursor) Close ¶
-func (qc *QueryCursor) Close()
-Close should be called to ensure that all the memory used by the query cursor is freed.
-
-As the constructor in go-tree-sitter would set this func call through runtime.SetFinalizer, parser.Close() will be called by Go's garbage collector and users would not have to call this manually.
-
-func (*QueryCursor) Exec ¶
-func (qc *QueryCursor) Exec(q *Query, n *Node)
-Exec executes the query on a given syntax node.
-
-func (*QueryCursor) FilterPredicates ¶
-func (qc *QueryCursor) FilterPredicates(m *QueryMatch, input []byte) *QueryMatch
-func (*QueryCursor) NextCapture ¶
-func (qc *QueryCursor) NextCapture() (*QueryMatch, uint32, bool)
-func (*QueryCursor) NextMatch ¶
-func (qc *QueryCursor) NextMatch() (*QueryMatch, bool)
-NextMatch iterates over matches. This function will return (nil, false) when there are no more matches. Otherwise, it will populate the QueryMatch with data about which pattern matched and which nodes were captured.
-
-func (*QueryCursor) SetPointRange ¶
-func (qc *QueryCursor) SetPointRange(startPoint Point, endPoint Point)
-type QueryError ¶
-type QueryError struct {
-Offset  uint32
-Type    QueryErrorType
-Message string
-}
-QueryError - if there is an error in the query, then the Offset argument will be set to the byte offset of the error, and the Type argument will be set to a value that indicates the type of error.
-
-func (*QueryError) Error ¶
-func (qe *QueryError) Error() string
-type QueryErrorType ¶
-type QueryErrorType int
-QueryErrorType - value that indicates the type of QueryError.
-
-const (
-QueryErrorNone QueryErrorType = iota
-QueryErrorSyntax
-QueryErrorNodeType
-QueryErrorField
-QueryErrorCapture
-QueryErrorStructure
-QueryErrorLanguage
-)
-type QueryMatch ¶
-type QueryMatch struct {
-ID           uint32
-PatternIndex uint16
-Captures     []QueryCapture
-}
-QueryMatch - you can then iterate over the matches.
-
-type QueryPredicateStep ¶
-type QueryPredicateStep struct {
-Type    QueryPredicateStepType
-ValueId uint32
-}
-type QueryPredicateStepType ¶
-type QueryPredicateStepType int
-const (
-QueryPredicateStepTypeDone QueryPredicateStepType = iota
-QueryPredicateStepTypeCapture
-QueryPredicateStepTypeString
-)
-type Range ¶
-type Range struct {
-StartPoint Point
-EndPoint   Point
-StartByte  uint32
-EndByte    uint32
-}
-type ReadFunc ¶
-type ReadFunc func(offset uint32, position Point) []byte
-ReadFunc is a function to retrieve a chunk of text at a given byte offset and (row, column) position it should return nil to indicate the end of the document
-
-type Symbol ¶
-type Symbol = C.TSSymbol
-type SymbolType ¶
-type SymbolType int
-const (
-SymbolTypeRegular SymbolType = iota
-SymbolTypeAnonymous
-SymbolTypeAuxiliary
-)
-func (SymbolType) String ¶
-func (t SymbolType) String() string
-type Tree ¶
-type Tree struct {
-*BaseTree
-// contains filtered or unexported fields
-}
-Tree represents the syntax tree of an entire source code file Note: Tree instances are not thread safe; you must copy a tree if you want to use it on multiple threads simultaneously.
-
-func (*Tree) Copy ¶
-func (t *Tree) Copy() *Tree
-Copy returns a new copy of a tree
-
-func (*Tree) Edit ¶
-func (t *Tree) Edit(i EditInput)
-Edit the syntax tree to keep it in sync with source code that has been edited.
-
-func (*Tree) RootNode ¶
-func (t *Tree) RootNode() *Node
-RootNode returns root node of a tree
-
-type TreeCursor ¶
-type TreeCursor struct {
-// contains filtered or unexported fields
-}
-TreeCursor allows you to walk a syntax tree more efficiently than is possible using the `Node` functions. It is a mutable object that is always on a certain syntax node, and can be moved imperatively to different nodes.
-
-func NewTreeCursor ¶
-func NewTreeCursor(n *Node) *TreeCursor
-NewTreeCursor creates a new tree cursor starting from the given node.
-
-func (*TreeCursor) Close ¶
-func (c *TreeCursor) Close()
-Close should be called to ensure that all the memory used by the tree cursor is freed.
-
-As the constructor in go-tree-sitter would set this func call through runtime.SetFinalizer, parser.Close() will be called by Go's garbage collector and users would not have to call this manually.
-
-func (*TreeCursor) CurrentFieldName ¶
-func (c *TreeCursor) CurrentFieldName() string
-CurrentFieldName gets the field name of the tree cursor's current node.
-
-This returns empty string if the current node doesn't have a field.
-
-func (*TreeCursor) CurrentNode ¶
-func (c *TreeCursor) CurrentNode() *Node
-CurrentNode of the tree cursor.
-
-func (*TreeCursor) GoToFirstChild ¶
-func (c *TreeCursor) GoToFirstChild() bool
-GoToFirstChild moves the cursor to the first child of its current node.
-
-This returns `true` if the cursor successfully moved, and returns `false` if there were no children.
-
-func (*TreeCursor) GoToFirstChildForByte ¶
-func (c *TreeCursor) GoToFirstChildForByte(b uint32) int64
-GoToFirstChildForByte moves the cursor to the first child of its current node that extends beyond the given byte offset.
-
-This returns the index of the child node if one was found, and returns -1 if no such child was found.
-
-func (*TreeCursor) GoToNextSibling ¶
-func (c *TreeCursor) GoToNextSibling() bool
-GoToNextSibling moves the cursor to the next sibling of its current node.
-
-This returns `true` if the cursor successfully moved, and returns `false` if there was no next sibling node.
-
-func (*TreeCursor) GoToParent ¶
-func (c *TreeCursor) GoToParent() bool
-GoToParent moves the cursor to the parent of its current node.
-
-This returns `true` if the cursor successfully moved, and returns `false` if there was no parent node (the cursor was already on the root node).
-
-func (*TreeCursor) Reset ¶
-func (c *TreeCursor) Reset(n *Node)
-Reset re-initializes a tree cursor to start at a different node.
+- [Official tree-sitter documentation](https://tree-sitter.github.io/tree-sitter/)
+- [go-tree-sitter repository](https://github.com/smacker/go-tree-sitter)
+- [Tree-sitter playground](https://tree-sitter.github.io/tree-sitter/playground)
+- [Query syntax reference](https://tree-sitter.github.io/tree-sitter/using-parsers#pattern-matching-with-queries)

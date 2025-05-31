@@ -1,0 +1,76 @@
+package com.example.basic;
+
+import java.util.*;
+import java.io.IOException;
+
+/**
+ * A basic example class demonstrating common Java constructs
+ */
+public class BasicExample {
+    // Static constants
+    public static final String VERSION = "1.0.0";
+    private static final int MAX_SIZE = 100;
+    
+    // Instance fields
+    private String name;
+    protected List<String> items;
+    public int count;
+    
+    // Static initializer
+    static {
+        System.out.println("Class loaded");
+    }
+    
+    // Instance initializer
+    {
+        items = new ArrayList<>();
+        count = 0;
+    }
+    
+    // Default constructor
+    public BasicExample() {
+        this("default");
+    }
+    
+    // Parameterized constructor
+    public BasicExample(String name) {
+        this.name = name;
+    }
+    
+    // Getter method
+    public String getName() {
+        return name;
+    }
+    
+    // Setter method
+    public void setName(String name) {
+        this.name = name;
+    }
+    
+    // Method with parameters and return type
+    public boolean addItem(String item) {
+        if (item != null && !item.isEmpty()) {
+            items.add(item);
+            count++;
+            return true;
+        }
+        return false;
+    }
+    
+    // Static method
+    public static void printVersion() {
+        System.out.println("Version: " + VERSION);
+    }
+    
+    // Method with exceptions
+    public void processFile(String filename) throws IOException {
+        // Implementation here
+    }
+    
+    // Main method
+    public static void main(String[] args) {
+        BasicExample example = new BasicExample("test");
+        example.addItem("item1");
+        printVersion();
+    }
+} 
