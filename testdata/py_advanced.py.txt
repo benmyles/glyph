@@ -1,0 +1,303 @@
+# Advanced Python features
+
+import asyncio
+import functools
+import inspect
+from typing import Any, Awaitable, Callable, Generic, TypeVar, Protocol, runtime_checkable
+from contextlib import asynccontextmanager
+from enum import Enum, auto
+from collections.abc import AsyncIterator
+
+# Type variables
+T = TypeVar('T')
+K = TypeVar('K')
+V = TypeVar('V')
+
+# Protocols
+@runtime_checkable
+class Serializable(Protocol):
+    def serialize(self) -> dict: ...
+    def deserialize(self, data: dict) -> None: ...
+
+@runtime_checkable
+class Comparable(Protocol[T]):
+    def __lt__(self, other: T) -> bool: ...
+    def __eq__(self, other: T) -> bool: ...
+
+# Enums
+class Status(Enum):
+    PENDING = auto()
+    PROCESSING = auto()
+    COMPLETED = auto()
+    FAILED = auto()
+
+    def is_terminal(self) -> bool:
+        return self in (Status.COMPLETED, Status.FAILED)
+
+class Priority(Enum):
+    LOW = 1
+    MEDIUM = 2
+    HIGH = 3
+    CRITICAL = 4
+
+# Metaclass
+class SingletonMeta(type):
+    _instances = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super().__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+class ConfigManager(metaclass=SingletonMeta):
+    def __init__(self):
+        self._config = {}
+
+    def set(self, key: str, value: Any) -> None:
+        self._config[key] = value
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self._config.get(key, default)
+
+# Generic classes
+class Cache(Generic[K, V]):
+    def __init__(self, max_size: int = 100):
+        self._data: dict[K, V] = {}
+        self._max_size = max_size
+
+    def get(self, key: K) -> V | None:
+        return self._data.get(key)
+
+    def set(self, key: K, value: V) -> None:
+        if len(self._data) >= self._max_size:
+            # Remove oldest item (simple FIFO)
+            oldest_key = next(iter(self._data))
+            del self._data[oldest_key]
+        self._data[key] = value
+
+    def clear(self) -> None:
+        self._data.clear()
+
+# Async classes and functions
+class AsyncTaskManager:
+    def __init__(self):
+        self._tasks: list[asyncio.Task] = []
+
+    async def add_task(self, coro: Awaitable[T]) -> T:
+        task = asyncio.create_task(coro)
+        self._tasks.append(task)
+        return await task
+
+    async def wait_all(self) -> list[Any]:
+        if not self._tasks:
+            return []
+        
+        results = await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
+        return results
+
+    async def cancel_all(self) -> None:
+        for task in self._tasks:
+            task.cancel()
+        
+        if self._tasks:
+            await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
+
+# Async context manager
+@asynccontextmanager
+async def async_database_transaction():
+    print("Starting transaction")
+    try:
+        # Simulate database connection
+        await asyncio.sleep(0.1)
+        yield "transaction_context"
+    except Exception as e:
+        print(f"Rolling back transaction: {e}")
+        raise
+    else:
+        print("Committing transaction")
+    finally:
+        print("Closing transaction")
+
+# Advanced decorators
+def async_retry(max_attempts: int = 3, delay: float = 1.0):
+    def decorator(func: Callable[..., Awaitable[T]]) -> Callable[..., Awaitable[T]]:
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs) -> T:
+            last_exception = None
+            
+            for attempt in range(max_attempts):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    last_exception = e
+                    if attempt < max_attempts - 1:
+                        await asyncio.sleep(delay * (2 ** attempt))  # Exponential backoff
+                    
+            raise last_exception
+        return wrapper
+    return decorator
+
+def measure_time(func: Callable) -> Callable:
+    @functools.wraps(func)
+    def sync_wrapper(*args, **kwargs):
+        import time
+        start = time.time()
+        result = func(*args, **kwargs)
+        end = time.time()
+        print(f"{func.__name__} took {end - start:.4f} seconds")
+        return result
+    
+    @functools.wraps(func)
+    async def async_wrapper(*args, **kwargs):
+        import time
+        start = time.time()
+        result = await func(*args, **kwargs)
+        end = time.time()
+        print(f"{func.__name__} took {end - start:.4f} seconds")
+        return result
+    
+    if inspect.iscoroutinefunction(func):
+        return async_wrapper
+    else:
+        return sync_wrapper
+
+# Async functions with decorators
+@async_retry(max_attempts=3, delay=0.5)
+@measure_time
+async def fetch_data(url: str) -> dict:
+    """Simulate fetching data from an API."""
+    await asyncio.sleep(0.1)  # Simulate network delay
+    
+    if url == "http://error.com":
+        raise ConnectionError("Failed to connect")
+    
+    return {"url": url, "data": "sample_data"}
+
+@measure_time
+async def process_batch(items: list[str]) -> list[dict]:
+    """Process a batch of items concurrently."""
+    tasks = [fetch_data(f"http://api.com/{item}") for item in items]
+    return await asyncio.gather(*tasks)
+
+# Async generator
+async def async_range(start: int, stop: int, step: int = 1) -> AsyncIterator[int]:
+    """Async version of range."""
+    current = start
+    while current < stop:
+        await asyncio.sleep(0.01)  # Simulate async work
+        yield current
+        current += step
+
+async def stream_data(source: str) -> AsyncIterator[dict]:
+    """Stream data from a source."""
+    for i in range(10):
+        await asyncio.sleep(0.1)
+        yield {"id": i, "source": source, "timestamp": asyncio.get_event_loop().time()}
+
+# Property decorators and descriptors
+class ValidatedProperty:
+    def __init__(self, validator: Callable[[Any], bool], error_msg: str = "Invalid value"):
+        self.validator = validator
+        self.error_msg = error_msg
+        self.name = None
+
+    def __set_name__(self, owner, name):
+        self.name = f"_{name}"
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
+        return getattr(obj, self.name, None)
+
+    def __set__(self, obj, value):
+        if not self.validator(value):
+            raise ValueError(self.error_msg)
+        setattr(obj, self.name, value)
+
+class Person:
+    age = ValidatedProperty(lambda x: isinstance(x, int) and x >= 0, "Age must be a non-negative integer")
+    name = ValidatedProperty(lambda x: isinstance(x, str) and len(x) > 0, "Name must be a non-empty string")
+
+    def __init__(self, name: str, age: int):
+        self.name = name
+        self.age = age
+
+    @property
+    def is_adult(self) -> bool:
+        return self.age >= 18
+
+    @property
+    def category(self) -> str:
+        if self.age < 13:
+            return "child"
+        elif self.age < 18:
+            return "teenager"
+        else:
+            return "adult"
+
+# Context manager class
+class ResourceManager:
+    def __init__(self, resource_name: str):
+        self.resource_name = resource_name
+        self.resource = None
+
+    def __enter__(self):
+        print(f"Acquiring {self.resource_name}")
+        self.resource = f"handle_to_{self.resource_name}"
+        return self.resource
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        print(f"Releasing {self.resource_name}")
+        if exc_type:
+            print(f"Exception occurred: {exc_val}")
+        self.resource = None
+        return False  # Don't suppress exceptions
+
+# Factory pattern with generics
+class Factory(Generic[T]):
+    def __init__(self):
+        self._creators: dict[str, Callable[..., T]] = {}
+
+    def register(self, name: str, creator: Callable[..., T]) -> None:
+        self._creators[name] = creator
+
+    def create(self, name: str, *args, **kwargs) -> T:
+        creator = self._creators.get(name)
+        if not creator:
+            raise ValueError(f"Unknown type: {name}")
+        return creator(*args, **kwargs)
+
+# Usage example
+def create_person(name: str, age: int) -> Person:
+    return Person(name, age)
+
+def create_cache(max_size: int = 100) -> Cache[str, Any]:
+    return Cache(max_size)
+
+# Main async function
+async def main():
+    """Main async function demonstrating various features."""
+    # Test async task manager
+    manager = AsyncTaskManager()
+    
+    # Add some tasks
+    await manager.add_task(fetch_data("http://api.com/test"))
+    
+    # Test async context manager
+    async with async_database_transaction() as tx:
+        print(f"Working with {tx}")
+    
+    # Test async generator
+    async for value in async_range(0, 5):
+        print(f"Async value: {value}")
+    
+    # Test streaming
+    async for data in stream_data("test_source"):
+        print(f"Streamed: {data}")
+        if data["id"] >= 3:  # Stop early
+            break
+
+if __name__ == "__main__":
+    asyncio.run(main()) 

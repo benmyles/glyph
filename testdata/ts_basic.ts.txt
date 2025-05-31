@@ -1,0 +1,169 @@
+// Basic TypeScript constructs
+
+// Type definitions
+type UserID = string;
+type Status = 'active' | 'inactive' | 'pending';
+
+interface User {
+    id: UserID;
+    name: string;
+    email: string;
+    status: Status;
+    createdAt: Date;
+}
+
+interface UserRepository {
+    findById(id: UserID): Promise<User | null>;
+    save(user: User): Promise<void>;
+    delete(id: UserID): Promise<boolean>;
+}
+
+// Generic interfaces
+interface Repository<T, K> {
+    findById(id: K): Promise<T | null>;
+    save(entity: T): Promise<void>;
+    findAll(): Promise<T[]>;
+}
+
+interface Comparable<T> {
+    compareTo(other: T): number;
+}
+
+// Classes with TypeScript features
+class UserService implements UserRepository {
+    private users: Map<UserID, User> = new Map();
+
+    constructor(private logger: Logger) {}
+
+    async findById(id: UserID): Promise<User | null> {
+        this.logger.log(`Finding user with id: ${id}`);
+        return this.users.get(id) || null;
+    }
+
+    async save(user: User): Promise<void> {
+        this.users.set(user.id, user);
+        this.logger.log(`Saved user: ${user.name}`);
+    }
+
+    async delete(id: UserID): Promise<boolean> {
+        const deleted = this.users.delete(id);
+        if (deleted) {
+            this.logger.log(`Deleted user with id: ${id}`);
+        }
+        return deleted;
+    }
+
+    getUserCount(): number {
+        return this.users.size;
+    }
+}
+
+// Abstract class
+abstract class BaseEntity {
+    protected id: string;
+    protected createdAt: Date;
+
+    constructor(id: string) {
+        this.id = id;
+        this.createdAt = new Date();
+    }
+
+    abstract validate(): boolean;
+
+    getId(): string {
+        return this.id;
+    }
+
+    getCreatedAt(): Date {
+        return this.createdAt;
+    }
+}
+
+// Generic class
+class GenericRepository<T extends BaseEntity> implements Repository<T, string> {
+    private entities: Map<string, T> = new Map();
+
+    async findById(id: string): Promise<T | null> {
+        return this.entities.get(id) || null;
+    }
+
+    async save(entity: T): Promise<void> {
+        if (!entity.validate()) {
+            throw new Error('Invalid entity');
+        }
+        this.entities.set(entity.getId(), entity);
+    }
+
+    async findAll(): Promise<T[]> {
+        return Array.from(this.entities.values());
+    }
+
+    count(): number {
+        return this.entities.size;
+    }
+}
+
+// Functions with type annotations
+function createUser(name: string, email: string, status: Status = 'active'): User {
+    return {
+        id: generateId(),
+        name,
+        email,
+        status,
+        createdAt: new Date()
+    };
+}
+
+async function processUsers(users: User[], processor: (user: User) => Promise<void>): Promise<void> {
+    for (const user of users) {
+        await processor(user);
+    }
+}
+
+// Generic functions
+function identity<T>(arg: T): T {
+    return arg;
+}
+
+function mapArray<T, U>(array: T[], mapper: (item: T) => U): U[] {
+    return array.map(mapper);
+}
+
+// Arrow functions with types
+const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+};
+
+const sortUsers = (users: User[], key: keyof User): User[] => {
+    return users.sort((a, b) => {
+        const aVal = a[key];
+        const bVal = b[key];
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+    });
+};
+
+// Utility functions
+function generateId(): string {
+    return Math.random().toString(36).substr(2, 9);
+}
+
+// Logger interface and implementation
+interface Logger {
+    log(message: string): void;
+    error(message: string): void;
+}
+
+class ConsoleLogger implements Logger {
+    log(message: string): void {
+        console.log(`[LOG] ${message}`);
+    }
+
+    error(message: string): void {
+        console.error(`[ERROR] ${message}`);
+    }
+}
+
+// Export types and classes
+export { User, UserRepository, UserService, BaseEntity, GenericRepository, Logger, ConsoleLogger };
+export type { UserID, Status }; 

@@ -361,41 +361,47 @@ var typescriptQueries = map[string]string{
 	"functions": `
 		(function_declaration
 			name: (identifier) @name
-			parameters: (formal_parameters) @params
-			return_type: (type_annotation)? @return_type
 		) @function
 	`,
 	"interfaces": `
 		(interface_declaration
 			name: (type_identifier) @name
-			body: (object_type) @body
 		) @interface
 	`,
 	"type_aliases": `
 		(type_alias_declaration
 			name: (type_identifier) @name
-			value: (_) @type_def
-		) @type_alias
+		) @type
 	`,
 	"classes": `
 		(class_declaration
-			name: (identifier) @name
-			heritage: (class_heritage)? @extends
-			body: (class_body) @body
+			name: (type_identifier) @name
 		) @class
 	`,
 	"methods": `
 		(method_definition
 			name: (property_identifier) @name
-			parameters: (formal_parameters) @params
-			return_type: (type_annotation)? @return_type
 		) @method
 	`,
 	"properties": `
-		(public_field_definition
+		(property_signature
 			name: (property_identifier) @name
-			type: (type_annotation)? @type
-			value: (_)? @value
 		) @property
+	`,
+	"variables": `
+		(variable_declarator
+			name: (identifier) @name
+		) @variable
+	`,
+	"arrow_functions": `
+		(variable_declarator
+			name: (identifier) @name
+			value: (arrow_function)
+		) @function
+	`,
+	"namespaces": `
+		(module_declaration
+			name: (identifier) @name
+		) @namespace
 	`,
 }

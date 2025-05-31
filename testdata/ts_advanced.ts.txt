@@ -1,0 +1,194 @@
+// Advanced TypeScript features
+
+// Namespace
+namespace Utils {
+    export interface Config {
+        apiUrl: string;
+        timeout: number;
+    }
+
+    export class HttpClient {
+        constructor(private config: Config) {}
+
+        async get<T>(endpoint: string): Promise<T> {
+            const response = await fetch(`${this.config.apiUrl}${endpoint}`);
+            return response.json();
+        }
+
+        async post<T>(endpoint: string, data: any): Promise<T> {
+            const response = await fetch(`${this.config.apiUrl}${endpoint}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            return response.json();
+        }
+    }
+
+    export function createClient(config: Config): HttpClient {
+        return new HttpClient(config);
+    }
+}
+
+// Advanced type definitions
+type EventType = 'click' | 'hover' | 'focus' | 'blur';
+type EventHandler<T = Event> = (event: T) => void;
+
+interface EventMap {
+    click: MouseEvent;
+    hover: MouseEvent;
+    focus: FocusEvent;
+    blur: FocusEvent;
+}
+
+// Conditional types
+type ApiResponse<T> = T extends string 
+    ? { message: T } 
+    : T extends number 
+    ? { count: T } 
+    : { data: T };
+
+// Mapped types
+type Partial<T> = {
+    [P in keyof T]?: T[P];
+};
+
+type Required<T> = {
+    [P in keyof T]-?: T[P];
+};
+
+// Template literal types
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+type ApiEndpoint = `/api/${string}`;
+type HttpUrl = `http${'s' | ''}://${string}`;
+
+// Decorator functions (experimental)
+function logged(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+    const originalMethod = descriptor.value;
+    descriptor.value = function(...args: any[]) {
+        console.log(`Calling ${propertyKey} with args:`, args);
+        const result = originalMethod.apply(this, args);
+        console.log(`${propertyKey} returned:`, result);
+        return result;
+    };
+}
+
+function validate(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
+    const originalMethod = descriptor.value;
+    descriptor.value = function(...args: any[]) {
+        if (args.some(arg => arg == null)) {
+            throw new Error(`Invalid arguments for ${propertyKey}`);
+        }
+        return originalMethod.apply(this, args);
+    };
+}
+
+// Class with decorators
+class Calculator {
+    @logged
+    add(a: number, b: number): number {
+        return a + b;
+    }
+
+    @validate
+    @logged
+    divide(a: number, b: number): number {
+        if (b === 0) {
+            throw new Error('Division by zero');
+        }
+        return a / b;
+    }
+
+    multiply(a: number, b: number): number {
+        return a * b;
+    }
+}
+
+// Generic constraints
+interface Lengthwise {
+    length: number;
+}
+
+function logLength<T extends Lengthwise>(arg: T): T {
+    console.log(arg.length);
+    return arg;
+}
+
+// Utility types
+type Pick<T, K extends keyof T> = {
+    [P in K]: T[P];
+};
+
+type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
+
+// Advanced class with generics
+abstract class Repository<T, K extends string | number> {
+    protected abstract storage: Map<K, T>;
+
+    abstract save(entity: T): Promise<void>;
+    abstract findById(id: K): Promise<T | undefined>;
+
+    async findAll(): Promise<T[]> {
+        return Array.from(this.storage.values());
+    }
+
+    async count(): Promise<number> {
+        return this.storage.size;
+    }
+}
+
+class InMemoryRepository<T extends { id: K }, K extends string | number> extends Repository<T, K> {
+    protected storage = new Map<K, T>();
+
+    async save(entity: T): Promise<void> {
+        this.storage.set(entity.id, entity);
+    }
+
+    async findById(id: K): Promise<T | undefined> {
+        return this.storage.get(id);
+    }
+
+    async deleteById(id: K): Promise<boolean> {
+        return this.storage.delete(id);
+    }
+}
+
+// Module augmentation
+declare global {
+    interface Window {
+        myApp: {
+            version: string;
+            config: Utils.Config;
+        };
+    }
+}
+
+// Function overloads
+function processValue(value: string): string;
+function processValue(value: number): number;
+function processValue(value: boolean): boolean;
+function processValue(value: string | number | boolean): string | number | boolean {
+    if (typeof value === 'string') {
+        return value.toUpperCase();
+    }
+    if (typeof value === 'number') {
+        return value * 2;
+    }
+    return !value;
+}
+
+// Async generator
+async function* fetchPages<T>(
+    fetcher: (page: number) => Promise<T[]>,
+    maxPages: number = 10
+): AsyncGenerator<T[], void, unknown> {
+    for (let page = 1; page <= maxPages; page++) {
+        const data = await fetcher(page);
+        if (data.length === 0) break;
+        yield data;
+    }
+}
+
+// Export everything
+export { Utils, Calculator, Repository, InMemoryRepository };
+export type { EventType, EventHandler, EventMap, ApiResponse, HttpMethod, ApiEndpoint, HttpUrl }; 

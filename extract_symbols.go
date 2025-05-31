@@ -29,5 +29,9 @@ func ExtractSymbols(pattern string, detail string) (string, error) {
 		allSymbols = append(allSymbols, symbols...)
 	}
 
+	if len(allSymbols) == 0 {
+		return "No symbols found", nil
+	}
+
 	return FormatSymbols(allSymbols, detailLevel), nil
 }
